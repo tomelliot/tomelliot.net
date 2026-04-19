@@ -36,28 +36,45 @@
           "Helvetica Neue", sans-serif;
         background-color: rgb(18, 20, 20);
         color: rgb(226, 232, 240);
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        height: 100vh;
+        overflow: hidden;
       }
 
       main {
         display: flex;
-        align-items: center;
         justify-content: center;
-        min-height: 100vh;
-        padding: 2rem;
-        margin: 0 200px;
+        height: 100vh;
+        margin: 0 clamp(1rem, 10vw, 200px);
       }
 
       .container {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 5rem;
+        gap: clamp(2rem, 5vw, 5rem);
         align-items: center;
         max-width: 1200px;
         width: 100%;
+        height: 100vh;
+      }
+
+      .headshot-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        padding-top: calc(50vh - 50px);
+        padding-bottom: 2rem;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      .content::-webkit-scrollbar {
+        width: 0;
       }
 
       .headshot-container {
@@ -81,10 +98,28 @@
         object-fit: cover;
       }
 
-      .content {
+      .section-heading {
+        font-size: 24px;
+        font-weight: 400;
+        margin: 0;
+        padding-bottom: 8px;
+      }
+
+      .projects {
         display: flex;
         flex-direction: column;
-        gap: 2rem;
+        gap: 1.25rem;
+      }
+
+      .project a {
+        display: block;
+        font-size: 16px;
+      }
+
+      .project-description {
+        font-size: 14px;
+        color: rgba(226, 232, 240, 0.6);
+        margin-top: 0.25rem;
       }
 
       .name {
@@ -115,18 +150,30 @@
       }
 
       @media (max-width: 768px) {
+        body {
+          height: auto;
+          overflow: auto;
+        }
+
         main {
-          margin: 0 1rem;
+          height: auto;
+          padding: 3rem 0;
         }
 
         .container {
           grid-template-columns: 1fr;
           gap: 2rem;
-          text-align: center;
+          height: auto;
         }
 
         .headshot-container {
           margin: 0 auto;
+        }
+
+        .content {
+          padding-top: 0;
+          height: auto;
+          overflow-y: visible;
         }
       }
     </style>
@@ -151,8 +198,10 @@
   <body>
     <main>
       <div class="container">
-        <div class="headshot-container">
-          <img src="headshot.png" alt="Headshot" class="headshot" />
+        <div class="headshot-wrapper">
+          <div class="headshot-container">
+            <img src="headshot.png" alt="Headshot" class="headshot" />
+          </div>
         </div>
         <div class="content">
           <h1 class="name">Tom Elliot</h1>
@@ -175,6 +224,41 @@
               rel="noopener noreferrer"
               >Mastodon</a
             >
+          </div>
+          <div class="projects">
+            <h2 class="section-heading">Recent Projects</h2>
+            <div class="project">
+              <a
+                href="https://www.fluidseo.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                >FluidSEO</a
+              >
+              <p class="project-description">Webflow SEO app (SaaS)</p>
+            </div>
+            <div class="project">
+              <a
+                href="https://github.com/tomelliot/obsidian-granola-sync/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Obsidian Granola Sync</a
+              >
+              <p class="project-description">
+                Sync Granola notes to your Obsidian vault (Open Source)
+              </p>
+            </div>
+            <div class="project">
+              <a
+                href="https://github.com/tomelliot/photo-to-scan"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Photo to Scan</a
+              >
+              <p class="project-description">
+                Process photos of documents and upload them to paperless-ngx
+                (Open Source)
+              </p>
+            </div>
           </div>
         </div>
       </div>

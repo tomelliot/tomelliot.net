@@ -77,25 +77,22 @@
         width: 0;
       }
 
+      /* The image carries its own squircle in its alpha channel, so nothing
+         here clips it — a border-radius would only cut the corners off the
+         shape that is already there. */
       .headshot-container {
         width: 224px;
         height: 224px;
-        border-radius: 50%;
-        background-color: rgb(18, 20, 20);
-        border: 10px solid rgb(18, 20, 20);
         display: flex;
         align-items: center;
         justify-content: center;
         margin: 0 68px;
-        overflow: hidden;
       }
 
       .headshot {
         width: 204px;
         height: 204px;
-        border-radius: 0;
         display: block;
-        object-fit: cover;
       }
 
       .section-heading {

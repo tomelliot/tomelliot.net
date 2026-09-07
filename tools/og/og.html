@@ -1,0 +1,198 @@
+<!doctype html>
+<!--
+    Source page for /og.png — the Open Graph card for tomelliot.net.
+
+    Rendered by tools/render-og.sh. Nothing links to this page; it exists so
+    the image can be regenerated rather than re-cut by hand.
+
+    The format is the coscope business card's front, which this borrows and
+    strips: a photograph running off three edges and stopped dead by a
+    hairline, the words in a column beside it. The card's graticule is gone —
+    it belongs to the instrument the card is for, and this site is not that.
+    What is left is the layout and the site's own two colours.
+
+    Every proportion below is the card's, expressed as a fraction of the
+    85mm trim so it survives the change of canvas. The card is 1.55:1 and this
+    is 1.91:1, so the same fractions put more air to the right of the words;
+    that is the format working, not drifting.
+-->
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>tomelliot.net — Open Graph card</title>
+        <style>
+            :root {
+                /* Open Graph's canonical size. Facebook, LinkedIn, Slack and
+                   Bluesky all crop to about 1.91:1; at 1200x630 none of them
+                   crops anything. */
+                --w: 1200px;
+                --h: 630px;
+
+                /* The site's palette, entire. index.html has a ground, an ink
+                   and one dimmed step of that ink, and nothing else. */
+                --ground: rgb(18, 20, 20);
+                --ink: rgb(226, 232, 240);
+                --ink-soft: rgba(226, 232, 240, 0.6);
+
+                /* The card's geometry, as fractions of its 85mm trim:
+                   36mm photo panel, 5mm gutter, 4mm safe margin, 0.2mm seam. */
+                --photo-w: calc(var(--w) * 36 / 85);
+                --gutter: calc(var(--w) * 5 / 85);
+                --edge: calc(var(--w) * 4 / 85);
+                --seam-w: calc(var(--w) * 0.2 / 85);
+
+                /* The seam. On the card this is a green-grey pulled off the
+                   brand accent; here there is no accent to pull from, so it is
+                   the ink held down until it stops the photograph without
+                   lighting up beside it. */
+                --seam: rgba(226, 232, 240, 0.38);
+
+                /* Where the head sits in the panel, and how tall it stands —
+                   as fractions of the panel. Reframing is these three numbers;
+                   nothing below is measured off the JPEG.
+
+                   The card's are 0.5 / 0.396 / 0.636. This panel is 0.81:1
+                   against the card's 0.65:1, so the card's height fraction
+                   leaves the head adrift in a panel that much wider; it stands
+                   taller here to hold the same share of the width. Which is
+                   also why it sits lower — hair-to-chin is the measurement,
+                   and curls are not in it, so at 0.636 and up the top of the
+                   head starts leaving the frame before the number says it
+                   should. */
+                --head-x: 0.5;
+                --head-y: 0.415;
+                --head-h: 0.67;
+
+                /* Where the head sits in portrait.jpg as shot, and the frame's
+                   aspect. Straight from tools/card/card.js, which is where
+                   they were measured. Re-shoot the photograph and re-measuring
+                   these four is the whole migration. */
+                --frame-hx: 0.4548;
+                --frame-hy: 0.2344;
+                --frame-hh: 0.2753;
+                --frame-aspect: 0.6666667;
+
+                /* Lay the whole frame down so the head lands where it is
+                   asked for. No crop is baked into the file: the panel's
+                   overflow decides what survives, exactly as the card's clip
+                   path does. */
+                --img-h: calc(var(--h) * var(--head-h) / var(--frame-hh));
+                --img-w: calc(var(--img-h) * var(--frame-aspect));
+                --img-x: calc(
+                    var(--photo-w) * var(--head-x) - var(--img-w) * var(--frame-hx)
+                );
+                --img-y: calc(
+                    var(--h) * var(--head-y) - var(--img-h) * var(--frame-hy)
+                );
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                background: #3a3a3a; /* only ever seen on screen, around the card */
+            }
+
+            .card {
+                position: relative;
+                width: var(--w);
+                height: var(--h);
+                overflow: hidden;
+                background: var(--ground);
+                color: var(--ink);
+
+                /* index.html's stack, so the card is set in the face the site
+                   is set in rather than in a webfont it never loads. */
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+                    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+                    "Helvetica Neue", sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            .panel {
+                position: absolute;
+                inset: 0 auto 0 0;
+                width: var(--photo-w);
+                overflow: hidden;
+            }
+
+            .panel img {
+                position: absolute;
+                left: var(--img-x);
+                top: var(--img-y);
+                width: var(--img-w);
+                height: var(--img-h);
+                display: block;
+            }
+
+            /* The hairline that stops the photograph. Its own element rather
+               than a border on the panel, because it has to be able to sit
+               above everything. */
+            .seam {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                left: var(--photo-w);
+                width: var(--seam-w);
+                background: var(--seam);
+            }
+
+            /* The words, spread over the full height of the column the way the
+               card spreads its three. The vertical inset is the card's 4mm
+               safe margin as a fraction of its 55mm height, so the type stands
+               off the top and bottom by what it stands off by on paper.
+
+               Held apart rather than paired, the two lines stop being one
+               block: the name opens the column and the tagline closes it, and
+               the space between them is the composition rather than a gap in
+               it. */
+            .plate {
+                position: absolute;
+                left: calc(var(--photo-w) + var(--gutter));
+                right: var(--edge);
+                top: calc(var(--h) * 4 / 55);
+                bottom: calc(var(--h) * 4 / 55);
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+
+            /* Closer in size than the card's 1.69:1, and much closer than they
+               were when they sat together — with the height of the column
+               between them there is no pairing left for scale alone to carry,
+               so the tagline can hold its own end of it. */
+            .name {
+                font-size: calc(var(--h) * 0.155);
+                font-weight: 400;
+                line-height: 1.05;
+                letter-spacing: -0.015em; /* the card's, at the card's weight */
+            }
+
+            /* The wider of the two lines now, and deliberately: a long line at
+               the foot gives the column a base to stand on. Capped by the
+               column, not by taste — at this size it runs to about 530 of the
+               565px available, and anything more sets it wrapping. */
+            .line {
+                font-size: calc(var(--h) * 0.0667);
+                font-weight: 400;
+                line-height: 1.3;
+                color: var(--ink-soft);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="panel"><img src="./portrait.jpg" alt="Tom Elliot" /></div>
+            <div class="seam"></div>
+            <div class="plate">
+                <p class="name">Tom Elliot</p>
+                <p class="line">Making things on the internet</p>
+            </div>
+        </div>
+    </body>
+</html>

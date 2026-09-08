@@ -202,8 +202,10 @@
         opacity: 1;
       }
 
+      /* Deliberately not a containing block: the arrows inside it are placed
+         against the whole viewer, out in the margin beside the photograph. The
+         narrow-screen rules below make it one and pull them in. */
       .lb-figure {
-        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -266,6 +268,7 @@
       }
 
       .lightbox.is-open .lb-btn:hover,
+      .lightbox.is-open .lb-btn:active,
       .lightbox.is-open .lb-btn:focus-visible {
         opacity: 1;
         background-color: rgba(226, 232, 240, 0.1);
@@ -309,6 +312,72 @@
         opacity: 0.15 !important;
         cursor: default;
         background-color: transparent !important;
+      }
+
+      /* Arrows floating at mid-height only stay clear of the picture while the
+         picture is limited by the viewport's height. Once it is limited by the
+         width instead it reaches the screen's edges and they land on top of it,
+         which is every phone, every tablet held upright, and any window squarer
+         than a landscape photograph. There they drop onto the caption line
+         under the photograph, outside the place and the counter, within reach
+         of a thumb and off the picture entirely. */
+      @media (max-width: 699px), (max-aspect-ratio: 4/3) {
+        .lb-figure {
+          position: relative;
+          /* A tall photograph on a phone held sideways leaves the figure
+             narrower than the caption line needs. */
+          min-width: min(100%, 20rem);
+          /* The figure can now be wider than the photograph, and the margin
+             either side of it stays somewhere to tap and close. */
+          pointer-events: none;
+        }
+
+        .lb-img,
+        .lb-caption,
+        .lb-btn {
+          pointer-events: auto;
+        }
+
+        /* Room for the taller caption line, and dvh so the phone's own chrome
+           cannot crop the photograph. */
+        .lb-img {
+          max-height: calc(100vh - 7.5rem);
+          max-height: calc(100dvh - 7.5rem);
+        }
+
+        .lb-caption {
+          align-items: center;
+          gap: 0.75rem;
+          min-height: 44px;
+          padding-inline: calc(44px + 0.5rem);
+        }
+
+        /* A long place name wraps rather than shouldering the counter out. */
+        .lb-place {
+          min-width: 0;
+        }
+
+        .lb-prev,
+        .lb-next {
+          top: auto;
+          bottom: 0;
+          margin-top: 0;
+        }
+
+        .lb-prev {
+          left: 0;
+        }
+
+        .lb-next {
+          right: 0;
+        }
+
+        /* On the backdrop rather than over the photograph, and with no hover to
+           bring them up, they read as controls instead of as a hint. */
+        .lightbox.is-open .lb-prev,
+        .lightbox.is-open .lb-next {
+          opacity: 0.9;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -916,17 +985,17 @@
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       </button>
-      <button class="lb-btn lb-prev" type="button" aria-label="Previous photo">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 5l-7 7 7 7" />
-        </svg>
-      </button>
-      <button class="lb-btn lb-next" type="button" aria-label="Next photo">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
       <figure class="lb-figure">
+        <button class="lb-btn lb-prev" type="button" aria-label="Previous photo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+        </button>
+        <button class="lb-btn lb-next" type="button" aria-label="Next photo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
         <img class="lb-img" id="lbImg" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="" />
         <figcaption class="lb-caption">
           <span class="lb-place" id="lbPlace"></span>

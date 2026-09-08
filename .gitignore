@@ -16,3 +16,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Built photo derivatives. Published to R2 by tools/build-gallery.mjs;
+# kept out of git so the repo does not carry image history.
+gallery/photos/

@@ -283,9 +283,20 @@ async function main() {
     ...departed.flatMap((p) => filesFor(p.f)),
     ...stale.filter((p) => byId.has(p.id)).flatMap((p) => filesFor(byId.get(p.id).f)),
   ])].filter((file) => !live.has(file));
-  if (obsolete.length) {
+
+  let removed = 0;
+  if (rebased) {
+    // Those files belong to wherever photos used to live. Deleting them
+    // through the new target would just fire misses at a host that never had
+    // them, so they are left where they are and reported instead.
+    console.log(
+      `photos moved from ${previous.base} to ${target.base}; ` +
+      `${obsolete.length} files are now orphaned at the old location and can be deleted by hand`
+    );
+  } else if (obsolete.length) {
     await target.remove(obsolete);
-    console.log(`removed ${obsolete.length} files no longer referenced`);
+    removed = obsolete.length;
+    console.log(`removed ${removed} files no longer referenced`);
   }
 
   const pagesChanged = writePages(published, target.base);
@@ -299,7 +310,7 @@ async function main() {
   // The sync wrapper reads this to decide whether there is anything to commit.
   if (env.GALLERY_REPORT) {
     fs.writeFileSync(env.GALLERY_REPORT, JSON.stringify({
-      changed, total: published.length, encoded: encoded.size, removed: obsolete.length,
+      changed, total: published.length, encoded: encoded.size, removed,
     }));
   }
 }

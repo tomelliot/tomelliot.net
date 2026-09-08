@@ -3,9 +3,11 @@
 # ImageMagick and git.
 FROM node:22-alpine
 
-# imagemagick-heic is the libheif delegate; Alpine's libheif ships AVIF *decoders*
+# Alpine splits ImageMagick's delegates into packages: imagemagick-jpeg reads the
+# originals, imagemagick-heic is the libheif delegate; Alpine's libheif ships AVIF *decoders*
 # only, so libheif-aom supplies the encoder. Verified on Alpine 3.24 / IM 7.1.2.
-RUN apk add --no-cache imagemagick imagemagick-heic libheif-aom git openssh-client ca-certificates \
+RUN apk add --no-cache imagemagick imagemagick-jpeg imagemagick-webp imagemagick-heic libheif-aom \
+        git openssh-client ca-certificates \
     && adduser -D -u 1001 gallery
 
 WORKDIR /app

@@ -1,134 +1,144 @@
 #!/usr/bin/env node
 /**
- * Builds the photo gallery from an Instagram data export.
+ * Builds the photo gallery from a source of photographs.
  *
- *   node tools/build-gallery.mjs <path-to-export> [--limit N]
+ *   node tools/build-gallery.mjs --source immich
+ *   node tools/build-gallery.mjs --source instagram --export <path> --target local
  *
- * Two things come out of it:
- *   - gallery/photos/<id>.avif      full size, long edge capped at 1600
- *   - gallery/photos/<id>-t.avif    600x600 centre crop for the grid
- * and the manifest, injected between markers in gallery/index.html and the
- * teaser tiles injected into index.html. Both files are the only place the
- * photo list lives, so the pages stay standalone with no fetch on load.
+ * The run is a reconciliation, not an append: whatever the source lists is
+ * what the site ends up showing. Photos added to the source are encoded and
+ * published, photos removed from it are deleted from the target, and photos
+ * whose bytes changed are re-encoded under a new URL. Running it twice over an
+ * unchanged source writes nothing.
  *
- * Place names come from the GPS in the export, matched against the anchor
- * table in tools/gallery-places.json. Anything further than MAX_KM from every
- * anchor gets no place and shows only its year.
+ * gallery/manifest.json records what is currently published, including each
+ * photo's source version, so a run only re-encodes what actually moved. It is
+ * build state and the browser never reads it — the pages carry their own
+ * trimmed copy, injected between markers.
+ *
+ * Configuration comes from flags or the environment; see tools/README.md.
  */
 
 import { execFile } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { immichSource, instagramSource } from "./lib/sources.mjs";
+import { localTarget, r2Target } from "./lib/targets.mjs";
+
 const run = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const OUT_DIR = path.join(ROOT, "gallery", "photos");
+const MANIFEST = path.join(ROOT, "gallery/manifest.json");
 
 const THUMB_PX = 600;
-const FULL_PX = 1600;
+const FULL_PX = 2400;
 const THUMB_QUALITY = 50;
 const FULL_QUALITY = 55;
 const TEASER_COUNT = 3;
-const MAX_KM = 35; // how far a photo may sit from an anchor and still take its name
-const CONCURRENCY = 8;
+const FETCH_CONCURRENCY = 4;
+const UPLOAD_CONCURRENCY = 6;
 
-const args = process.argv.slice(2);
-const exportDir = args.find((a) => !a.startsWith("--"));
-const limitArg = args.indexOf("--limit");
-const limit = limitArg === -1 ? Infinity : Number(args[limitArg + 1]);
+/* ------------------------------------------------------------------ *
+ * Configuration
+ * ------------------------------------------------------------------ */
 
-if (!exportDir) {
-  console.error("usage: node tools/build-gallery.mjs <path-to-instagram-export> [--limit N]");
-  process.exit(1);
-}
+const argv = process.argv.slice(2);
+const flag = (name, fallback) => {
+  const i = argv.indexOf(`--${name}`);
+  return i === -1 ? fallback : argv[i + 1];
+};
+const has = (name) => argv.includes(`--${name}`);
 
-const postsJson = path.join(exportDir, "your_instagram_activity/media/posts_1.json");
-if (!fs.existsSync(postsJson)) {
-  console.error(`no posts_1.json under ${exportDir}`);
-  process.exit(1);
-}
+const env = process.env;
+const config = {
+  source: flag("source", env.GALLERY_SOURCE ?? "immich"),
+  target: flag("target", env.GALLERY_TARGET ?? (env.R2_BUCKET ? "r2" : "local")),
+  limit: Number(flag("limit", env.GALLERY_LIMIT ?? Infinity)),
+  dryRun: has("dry-run"),
+  exportDir: flag("export", env.INSTAGRAM_EXPORT),
+  immich: {
+    baseUrl: flag("immich-url", env.IMMICH_URL ?? "http://immich-server:2283"),
+    apiKey: env.IMMICH_API_KEY,
+    tagName: flag("tag", env.IMMICH_TAG ?? "tomelliot.net"),
+    quality: flag("quality", env.IMMICH_QUALITY ?? "fullsize"),
+  },
+  r2: {
+    accountId: env.R2_ACCOUNT_ID,
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    bucket: env.R2_BUCKET,
+    prefix: env.R2_PREFIX ?? "",
+    base: flag("photo-base", env.PHOTO_BASE_URL),
+    endpoint: env.R2_ENDPOINT, // unsigned stub, for tests
+  },
+};
 
-const anchors = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/gallery-places.json"), "utf8"));
-
-/** Great-circle distance in km. */
-function distanceKm(aLat, aLon, bLat, bLon) {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLon = toRad(bLon - aLon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.asin(Math.sqrt(h));
-}
-
-function placeFor(lat, lon) {
-  // 0,0 is the export's stand-in for "no location", not a point in the Atlantic.
-  if (lat == null || lon == null || (lat === 0 && lon === 0)) return null;
-  let best = null;
-  for (const a of anchors) {
-    const km = distanceKm(lat, lon, a.lat, a.lon);
-    if (!best || km < best.km) best = { km, place: a.place };
+function buildSource() {
+  if (config.source === "instagram") {
+    if (!config.exportDir) throw new Error("--source instagram needs --export <path-to-export>");
+    return instagramSource({
+      exportDir: config.exportDir,
+      anchorsPath: path.join(ROOT, "tools/gallery-places.json"),
+    });
   }
-  return best && best.km <= MAX_KM ? best.place : null;
+  if (config.source === "immich") {
+    if (!config.immich.apiKey) throw new Error("--source immich needs IMMICH_API_KEY");
+    return immichSource(config.immich);
+  }
+  throw new Error(`unknown source "${config.source}"`);
 }
 
-function collect() {
-  const posts = JSON.parse(fs.readFileSync(postsJson, "utf8"));
-  const rows = [];
-  for (const post of posts) {
-    for (const media of post.media ?? []) {
-      const src = path.join(exportDir, media.uri);
-      if (!fs.existsSync(src)) continue; // older posts are trimmed from the export
-      const exif = media.media_metadata?.photo_metadata?.exif_data ?? [];
-      const geo = exif.find((e) => e.latitude != null);
-      rows.push({
-        id: path.basename(media.uri).replace(/\.[^.]+$/, ""),
-        src,
-        ts: media.creation_timestamp,
-        place: placeFor(geo?.latitude, geo?.longitude),
-      });
+function buildTarget() {
+  if (config.target === "local") return localTarget({ dir: path.join(ROOT, "gallery/photos") });
+  if (config.target === "r2") {
+    const required = config.r2.endpoint ? ["bucket", "base"] : ["accountId", "accessKeyId", "secretAccessKey", "bucket", "base"];
+    for (const key of required) {
+      if (!config.r2[key]) throw new Error(`--target r2 needs ${key} (see tools/README.md)`);
     }
+    return r2Target(config.r2);
   }
-  rows.sort((a, b) => b.ts - a.ts);
-  return rows.slice(0, limit);
+  throw new Error(`unknown target "${config.target}"`);
 }
 
-async function encode(photo) {
-  const full = path.join(OUT_DIR, `${photo.id}.avif`);
-  const thumb = path.join(OUT_DIR, `${photo.id}-t.avif`);
+/* ------------------------------------------------------------------ *
+ * Encoding
+ * ------------------------------------------------------------------ */
 
-  if (!fs.existsSync(full)) {
-    await run("magick", [photo.src, "-auto-orient", "-resize", `${FULL_PX}x${FULL_PX}>`,
-      "-quality", String(FULL_QUALITY), full]);
-  }
-  if (!fs.existsSync(thumb)) {
-    await run("magick", [photo.src, "-auto-orient", "-resize", `${THUMB_PX}x${THUMB_PX}^`,
-      "-gravity", "center", "-extent", `${THUMB_PX}x${THUMB_PX}`,
-      "-quality", String(THUMB_QUALITY), thumb]);
-  }
+async function encode(bytes, stem, scratch) {
+  const input = path.join(scratch, `${stem}.src`);
+  const full = path.join(scratch, `${stem}.avif`);
+  const thumb = path.join(scratch, `${stem}-t.avif`);
+  await fs.promises.writeFile(input, bytes);
+
+  await run("magick", [input, "-auto-orient", "-resize", `${FULL_PX}x${FULL_PX}>`,
+    "-quality", String(FULL_QUALITY), full]);
+  await run("magick", [input, "-auto-orient", "-resize", `${THUMB_PX}x${THUMB_PX}^`,
+    "-gravity", "center", "-extent", `${THUMB_PX}x${THUMB_PX}`,
+    "-quality", String(THUMB_QUALITY), thumb]);
 
   const { stdout } = await run("magick", ["identify", "-format", "%w %h", full]);
   const [w, h] = stdout.trim().split(" ").map(Number);
-  return { ...photo, w, h };
+  await fs.promises.rm(input, { force: true });
+  return { full, thumb, w, h };
 }
 
-async function encodeAll(photos) {
-  const done = [];
+/** Runs `worker` over `items`, at most `limit` at a time. */
+async function pool(items, limit, worker) {
   let next = 0;
   await Promise.all(
-    Array.from({ length: CONCURRENCY }, async () => {
-      while (next < photos.length) {
-        const i = next++;
-        done[i] = await encode(photos[i]);
-        process.stdout.write(`\r  encoded ${done.filter(Boolean).length}/${photos.length}`);
-      }
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) await worker(items[next++]);
     })
   );
-  process.stdout.write("\n");
-  return done;
 }
+
+/* ------------------------------------------------------------------ *
+ * Page injection
+ * ------------------------------------------------------------------ */
 
 /** Replaces the text between `start` and `end` markers, keeping the markers. */
 function inject(file, start, end, body) {
@@ -137,70 +147,161 @@ function inject(file, start, end, body) {
   const to = html.indexOf(end);
   if (from === -1 || to === -1) throw new Error(`markers ${start} / ${end} missing from ${file}`);
   const next = html.slice(0, from + start.length) + body + html.slice(to);
+  if (next === html) return false;
   fs.writeFileSync(file, next);
+  return true;
 }
 
-function caption(photo) {
-  const year = new Date(photo.ts * 1000).getUTCFullYear();
-  return photo.place ? `${photo.place} · ${year}` : String(year);
-}
+const escapeAttr = (s) =>
+  String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const photos = collect();
-console.log(`${photos.length} photos from the export`);
-fs.mkdirSync(OUT_DIR, { recursive: true });
-const encoded = await encodeAll(photos);
+/** What shows under a photo, and what a screen reader is told it is. */
+const caption = (photo) => (photo.p ? `${photo.p} · ${photo.y}` : String(photo.y));
+const altText = (photo) => photo.c || `Photograph — ${caption(photo)}`;
 
-// The gallery holds the whole manifest. `p` is place, `y` year, `w`/`h` the
-// full image's pixels so the lightbox can reserve its box before loading.
-const manifest = encoded.map((p) => ({
-  id: p.id,
-  y: new Date(p.ts * 1000).getUTCFullYear(),
-  ...(p.place ? { p: p.place } : {}),
-  w: p.w,
-  h: p.h,
-}));
+function writePages(published, base) {
+  const galleryPage = path.join(ROOT, "gallery/index.html");
+  const home = path.join(ROOT, "index.html");
+  let changed = false;
 
-const galleryPage = path.join(ROOT, "gallery/index.html");
+  // `f` is the file stem. It carries a hash of the source bytes, so an edited
+  // photo lands on a fresh URL rather than a stale one out of the CDN's cache.
+  const runtime = published.map((p) => ({
+    id: p.id, f: p.f, y: p.y,
+    ...(p.p ? { p: p.p } : {}), ...(p.c ? { c: p.c } : {}),
+    w: p.w, h: p.h,
+  }));
 
-inject(
-  galleryPage,
-  "/* photos:start */",
-  "/* photos:end */",
-  `\n      const PHOTOS = ${JSON.stringify(manifest)};\n      `
-);
+  changed = inject(galleryPage, "/* base:start */", "/* base:end */",
+    `\n      const PHOTO_BASE = ${JSON.stringify(base)};\n      `) || changed;
+  changed = inject(galleryPage, "/* photos:start */", "/* photos:end */",
+    `\n      const PHOTOS = ${JSON.stringify(runtime)};\n      `) || changed;
 
-// The grid ships as markup, not as something JavaScript builds, so the page
-// works with scripting off: every tile is a link straight to the full image.
-// The lightbox is the enhancement layered over that.
-const EAGER = 12; // roughly the first screenful; the rest load as they approach
-const tiles = encoded
-  .map(
-    (p, i) =>
-      `\n            <a class="tile" href="/gallery/photos/${p.id}.avif" aria-label="Photo: ${caption(p)}"` +
-      `\n              ><img src="/gallery/photos/${p.id}-t.avif" alt="Photograph — ${caption(p)}"` +
+  const EAGER = 12; // roughly the first screenful; the rest load as they approach
+  const tiles = published
+    .map((p, i) =>
+      `\n            <a class="tile" href="${base}/${p.f}.avif" aria-label="Photo: ${escapeAttr(caption(p))}"` +
+      `\n              ><img src="${base}/${p.f}-t.avif" alt="${escapeAttr(altText(p))}"` +
       ` width="${THUMB_PX}" height="${THUMB_PX}"` +
       `${i < EAGER ? "" : ' loading="lazy"'} decoding="async"` +
-      `\n            /></a>`
-  )
-  .join("");
-inject(galleryPage, "<!-- tiles:start -->", "<!-- tiles:end -->", `${tiles}\n          `);
+      `\n            /></a>`)
+    .join("");
+  changed = inject(galleryPage, "<!-- tiles:start -->", "<!-- tiles:end -->", `${tiles}\n          `) || changed;
 
-// The home page carries only the newest few, as plain markup so they render
-// without JavaScript and cost nothing to parse.
-const teaser = encoded
-  .slice(0, TEASER_COUNT)
-  .map(
-    (p) =>
-      `\n            <a class="photo-tile" href="/gallery/#${p.id}" aria-label="Photo: ${caption(p)}"` +
-      `\n              ><img src="/gallery/photos/${p.id}-t.avif" alt="" width="600" height="600"` +
-      `\n            /></a>`
-  )
-  .join("");
-const home = path.join(ROOT, "index.html");
-inject(home, "<!-- photos:start -->", "<!-- photos:end -->", `${teaser}\n            `);
-inject(home, "<!-- count:start -->", "<!-- count:end -->", String(encoded.length));
+  const teaser = published
+    .slice(0, TEASER_COUNT)
+    .map((p) =>
+      `\n            <a class="photo-tile" href="/gallery/#${p.id}" aria-label="Photo: ${escapeAttr(caption(p))}"` +
+      `\n              ><img src="${base}/${p.f}-t.avif" alt="" width="600" height="600"` +
+      `\n            /></a>`)
+    .join("");
+  changed = inject(home, "<!-- photos:start -->", "<!-- photos:end -->", `${teaser}\n            `) || changed;
+  changed = inject(home, "<!-- count:start -->", "<!-- count:end -->", String(published.length)) || changed;
 
-const bytes = fs
-  .readdirSync(OUT_DIR)
-  .reduce((sum, f) => sum + fs.statSync(path.join(OUT_DIR, f)).size, 0);
-console.log(`wrote ${encoded.length} photos (${(bytes / 1e6).toFixed(1)} MB) and injected both pages`);
+  return changed;
+}
+
+/* ------------------------------------------------------------------ *
+ * Reconcile
+ * ------------------------------------------------------------------ */
+
+const loadManifest = () =>
+  fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, "utf8")) : { base: null, photos: [] };
+
+const filesFor = (stem) => [`${stem}.avif`, `${stem}-t.avif`];
+
+async function main() {
+  const source = buildSource();
+  const target = buildTarget();
+  const previous = loadManifest();
+  const byId = new Map(previous.photos.map((p) => [p.id, p]));
+
+  const wanted = (await source.list()).slice(0, config.limit);
+  console.log(`${source.name}: ${wanted.length} photos`);
+  if (!wanted.length && previous.photos.length) {
+    // An API hiccup that returns nothing must not empty the site.
+    throw new Error("source returned no photos but the site has some; refusing to publish an empty gallery");
+  }
+
+  // Republish everything if the photos moved host, since every URL changes.
+  const rebased = Boolean(previous.base) && target.base !== previous.base;
+  const stale = wanted.filter((p) => {
+    const old = byId.get(p.id);
+    return !old || old.v !== p.version || rebased;
+  });
+  const departed = previous.photos.filter((p) => !wanted.some((w) => w.id === p.id));
+
+  if (config.dryRun) {
+    console.log(`dry run: ${stale.length} to encode, ${departed.length} to remove`);
+    for (const p of stale.slice(0, 10)) console.log(`  + ${p.id} ${p.place ?? ""}`.trimEnd());
+    for (const p of departed.slice(0, 10)) console.log(`  - ${p.id}`);
+    return;
+  }
+
+  const scratch = await fs.promises.mkdtemp(path.join(os.tmpdir(), "gallery-"));
+  const encoded = new Map();
+  try {
+    let done = 0;
+    await pool(stale, FETCH_CONCURRENCY, async (photo) => {
+      const bytes = await photo.read();
+      // Hashing the source bytes means the same photo always lands on the same
+      // URL, and a changed one can never collide with its predecessor.
+      const hash = crypto.createHash("sha256").update(bytes).digest("hex").slice(0, 8);
+      const stem = `${photo.id}-${hash}`;
+      encoded.set(photo.id, { stem, ...(await encode(bytes, stem, scratch)) });
+      process.stdout.write(`\r  encoded ${++done}/${stale.length}`);
+    });
+    if (stale.length) process.stdout.write("\n");
+
+    await pool([...encoded.values()], UPLOAD_CONCURRENCY, async (e) => {
+      await target.put(`${e.stem}.avif`, await fs.promises.readFile(e.full), "image/avif");
+      await target.put(`${e.stem}-t.avif`, await fs.promises.readFile(e.thumb), "image/avif");
+    });
+    if (encoded.size) console.log(`published ${encoded.size * 2} files to ${target.name}`);
+  } finally {
+    await fs.promises.rm(scratch, { recursive: true, force: true });
+  }
+
+  const published = wanted.map((photo) => {
+    const fresh = encoded.get(photo.id);
+    const old = byId.get(photo.id);
+    return {
+      id: photo.id,
+      f: fresh ? fresh.stem : old.f,
+      v: photo.version,
+      y: new Date(photo.ts * 1000).getUTCFullYear(),
+      ...(photo.place ? { p: photo.place } : {}),
+      ...(photo.caption ? { c: photo.caption } : {}),
+      w: fresh ? fresh.w : old.w,
+      h: fresh ? fresh.h : old.h,
+    };
+  });
+
+  // Only now that replacements are live is it safe to drop what they replaced.
+  const live = new Set(published.flatMap((p) => filesFor(p.f)));
+  const obsolete = [...new Set([
+    ...departed.flatMap((p) => filesFor(p.f)),
+    ...stale.filter((p) => byId.has(p.id)).flatMap((p) => filesFor(byId.get(p.id).f)),
+  ])].filter((file) => !live.has(file));
+  if (obsolete.length) {
+    await target.remove(obsolete);
+    console.log(`removed ${obsolete.length} files no longer referenced`);
+  }
+
+  const pagesChanged = writePages(published, target.base);
+  const manifest = JSON.stringify({ base: target.base, source: source.name, photos: published }, null, 1);
+  const manifestChanged = !fs.existsSync(MANIFEST) || fs.readFileSync(MANIFEST, "utf8") !== manifest;
+  if (manifestChanged) fs.writeFileSync(MANIFEST, manifest);
+
+  const changed = pagesChanged || manifestChanged;
+  console.log(changed ? `site updated: ${published.length} photos on ${target.base}` : "site already up to date");
+
+  // The sync wrapper reads this to decide whether there is anything to commit.
+  if (env.GALLERY_REPORT) {
+    fs.writeFileSync(env.GALLERY_REPORT, JSON.stringify({
+      changed, total: published.length, encoded: encoded.size, removed: obsolete.length,
+    }));
+  }
+}
+
+await main();

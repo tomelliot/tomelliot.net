@@ -1,0 +1,45 @@
+# Drop this service alongside the Immich stack, on the same network, then copy
+# .env.example to .env and fill it in. Nothing here is published to the host:
+# Immich is reached over the internal network and the only outbound traffic is
+# to R2 and GitHub.
+
+services:
+  gallery-sync:
+    build: ./tools/sync
+    container_name: gallery-sync
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Immich, over the Docker network — never the public hostname.
+      IMMICH_URL: http://immich-server:2283
+      IMMICH_TAG: tomelliot.net
+      # `fullsize` is the largest derivative Immich keeps and is plenty for the
+      # 2400px web copies. Use `original` to re-encode from the raw file.
+      IMMICH_QUALITY: fullsize
+
+      GALLERY_SOURCE: immich
+      GALLERY_TARGET: r2
+
+      REPO_DIR: /data/site
+      GIT_BRANCH: main
+      GIT_AUTHOR_NAME: gallery-sync
+      GIT_AUTHOR_EMAIL: gallery-sync@tomelliot.net
+
+      SYNC_INTERVAL_SECONDS: "900"
+      WEBHOOK_DEBOUNCE_SECONDS: "20"
+    volumes:
+      - gallery-sync-data:/data
+      # The deploy key that lets the container push the site repo.
+      - ./secrets/deploy_key:/home/sync/.ssh/id_ed25519:ro
+      - ./secrets/known_hosts:/home/sync/.ssh/known_hosts:ro
+    networks:
+      - immich_default
+    depends_on:
+      - immich-server
+
+volumes:
+  gallery-sync-data:
+
+networks:
+  immich_default:
+    external: true

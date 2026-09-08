@@ -202,10 +202,11 @@
         opacity: 1;
       }
 
-      /* Deliberately not a containing block: the arrows inside it are placed
-         against the whole viewer, out in the margin beside the photograph. The
-         narrow-screen rules below make it one and pull them in. */
+      /* Positioned so it paints over the backdrop, which is positioned too and
+         comes first. The arrows inside it escape it by being fixed rather than
+         absolute; the narrow-screen rules below bring them back in. */
       .lb-figure {
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -294,8 +295,12 @@
         right: clamp(0.75rem, 2vw, 1.5rem);
       }
 
+      /* Fixed, not absolute: the figure they sit in is a containing block, and
+         these belong out in the viewer's own margin beside the photograph. The
+         viewer is itself fixed to the viewport, so this is the same box. */
       .lb-prev,
       .lb-next {
+        position: fixed;
         top: 50%;
         margin-top: -22px;
       }
@@ -359,6 +364,7 @@
 
         .lb-prev,
         .lb-next {
+          position: absolute;
           top: auto;
           bottom: 0;
           margin-top: 0;

@@ -93,31 +93,15 @@
         margin-bottom: clamp(2.5rem, 6vw, 4rem);
       }
 
-      .masthead {
-        display: flex;
-        align-items: center;
-        gap: 1.25rem;
-        margin-bottom: clamp(2rem, 5vw, 3rem);
-      }
-
-      /* The headshot carries its own squircle in its alpha channel, so it needs
-         no clipping here — same as the home page. */
-      .avatar {
-        width: 72px;
-        height: 72px;
-        display: block;
-        flex-shrink: 0;
-      }
-
-      .title {
-        font-size: 24px;
-        font-weight: 400;
-      }
-
-      .meta {
-        font-size: 14px;
-        color: var(--fg-muted);
-        margin-top: 0.25rem;
+      /* The page names itself for assistive tech and search without putting a
+         heading between the visitor and the photographs. */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
       }
 
       .grid {
@@ -364,13 +348,7 @@
       <div class="wrap">
         <a class="text-link back" href="/">Tom Elliot</a>
 
-        <header class="masthead">
-          <img class="avatar" src="/headshot.avif" alt="" width="72" height="72" />
-          <div>
-            <h1 class="title">Photos</h1>
-            <p class="meta"><!-- meta:start -->175 photographs · 2016–2025<!-- meta:end --></p>
-          </div>
-        </header>
+        <h1 class="visually-hidden">Photos</h1>
 
         <div class="grid" id="grid"><!-- tiles:start -->
             <a class="tile" href="/gallery/photos/18039893306346219.avif" aria-label="Photo: Berlin · 2025"
@@ -969,7 +947,7 @@
                 obs.unobserve(entry.target);
               }
             },
-            { rootMargin: "0px 0px -8% 0px" }
+            { rootMargin: "0px" }
           );
           tiles.forEach((tile) => observer.observe(tile));
         }

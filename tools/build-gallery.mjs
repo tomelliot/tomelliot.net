@@ -185,15 +185,6 @@ const tiles = encoded
   .join("");
 inject(galleryPage, "<!-- tiles:start -->", "<!-- tiles:end -->", `${tiles}\n          `);
 
-const years = encoded.map((p) => new Date(p.ts * 1000).getUTCFullYear());
-const span = `${Math.min(...years)}–${Math.max(...years)}`;
-inject(
-  galleryPage,
-  "<!-- meta:start -->",
-  "<!-- meta:end -->",
-  `${encoded.length} photographs · ${span}`
-);
-
 // The home page carries only the newest few, as plain markup so they render
 // without JavaScript and cost nothing to parse.
 const teaser = encoded

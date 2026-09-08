@@ -1,6 +1,6 @@
 # Handover: publishing tomelliot.net's photo gallery from Immich
 
-You are picking up a mostly-finished integration. The site and the sync tooling are written, committed and tested; what remains is wiring them to the real Immich server and R2 bucket, which could not be done on the machine where this was built. You are on the machine that runs Immich, so you can finish it.
+You are picking up a mostly-finished integration. The site and the sync tooling are written, committed and tested, and the Cloudflare side is built and verified against the real bucket. What remains is the Immich half, which could not be reached from the machine where this was built. You are on the machine that runs Immich, so you can finish it.
 
 Read `tools/README.md` after this — it covers operating the tool. This document covers what you cannot infer from the code: why it is shaped the way it is, what has never run against real infrastructure, and what will bite you.
 
@@ -24,6 +24,7 @@ Photographs tagged `tomelliot.net` in Immich appear in the gallery at https://ww
 | `tools/lib/targets.mjs` | A directory in the repo, and R2. |
 | `tools/sync/server.mjs` | The service: timer, webhook listener, git push, one lock. |
 | `tools/sync/immich-workflow.mjs` | Builds the Immich workflow against your server's actual plugin method keys. |
+| `tools/sync/verify-r2.mjs` | One-command check that R2 credentials, signing, public read and delete all work. |
 | `tools/sync/Dockerfile`, `docker-compose.example.yml`, `env.example` | Deployment. |
 | `tools/README.md` | Operating manual. |
 
@@ -49,13 +50,40 @@ The whole pipeline, exercised end to end against stub Immich and R2 servers buil
 
 The gallery front end is finished and verified in a browser: grid at 3/4/5 columns, full-bleed on phones, lightbox with keyboard, swipe, deep links and browser-back, focus management, and zero axe violations on both pages. It works with JavaScript disabled — every tile is a plain link to the full image, and the lightbox is an enhancement layered over that. Keep it that way.
 
+## Already done, and proven against the real thing
+
+The Cloudflare side is built and verified. You do not need to create anything there.
+
+| | |
+|---|---|
+| Bucket | `tomelliot-photos`, location WEUR |
+| Account ID | `842832afb8f60617da8555ec2d63ade5` |
+| Public domain | `https://photos.tomelliot.net` — ownership active, SSL active |
+| Zone ID | `feb518dc3908f1641b99310f08fc3f18` (tomelliot.net was already on Cloudflare, which is what made a custom domain possible) |
+| Token | Object Read & Write, scoped to that bucket only |
+| Credentials | `/tmp/.env` on your machine |
+
+**Move those credentials off `/tmp` before you rely on them.** They will not survive a reboot.
+
+`tools/lib/targets.mjs` implements SigV4 by hand, with no npm dependencies anywhere in this project, deliberately, since the sync container holds both Immich and GitHub credentials. That signing has now been exercised against the real bucket: signed PUT, GET, LIST and DELETE all work, objects persist, and the public domain serves them at 200 with `cache-control: public, max-age=31536000, immutable`. That header is safe because filenames carry a hash of the source bytes, so a given URL's content can never change.
+
+Re-confirm it on your machine in one command before going further:
+
+```bash
+node tools/sync/verify-r2.mjs --env-file /tmp/.env
+```
+
+Two things that will mislead you while checking R2 by hand, both encountered during setup:
+
+- `wrangler r2 object get <bucket>/<key>` reported *"The specified key does not exist"* for objects that were demonstrably there — a signed GET and a signed LIST both returned them. Trust the S3 API over wrangler here.
+- `wrangler r2 bucket info` reports `object_count: 0` straight after an upload. That metric lags; it is not evidence of anything.
+
 ## What has never run against real infrastructure
 
-Treat these three as the risk list. Everything else has been exercised.
+Two items remain. Everything else has been exercised.
 
-1. **R2 signing.** `tools/lib/targets.mjs` implements SigV4 by hand for PUT and DELETE (no npm dependencies anywhere in this project, deliberately, since the container holds both Immich and GitHub credentials). It has only been exercised against an unsigned stub via the `R2_ENDPOINT` override. The signing itself is unverified. **Test this first** — see below.
-2. **Real Immich responses.** The Immich adapter was written against the OpenAPI spec at `open-api/immich-openapi-specs.json` and tested against a stub shaped from it. Field names are taken from the spec, not observed from a live server.
-3. **The container image.** No Docker daemon was available. In particular, that Alpine's `imagemagick-heic` really does provide ImageMagick's AVIF delegate is an assumption. `server.mjs` checks it at boot and exits with a clear message if it is missing, so this fails loudly rather than half-way through the first encode.
+1. **Real Immich responses.** The Immich adapter was written against the OpenAPI spec at `open-api/immich-openapi-specs.json` and tested against a stub shaped from it. Field names come from the spec, not from a live server. This is now the biggest unknown.
+2. **The container image.** No Docker daemon was available. In particular, that Alpine's `imagemagick-heic` really does provide ImageMagick's AVIF delegate is an assumption. `server.mjs` checks it at boot and exits with a clear message if it is missing, so this fails loudly rather than half-way through the first encode.
 
 ## Setup, in order
 
@@ -80,25 +108,17 @@ The second call is the important one. Confirm `exifInfo.city` is populated — t
 
 Create the tag if it does not exist. The name is `tomelliot.net`; the tool matches on either a tag's `value` (full path, for nested tags) or its `name`.
 
-### 2. Prove the R2 path
+### 2. Confirm R2 from your machine
 
-The riskiest untested piece. Create the bucket, attach a **custom domain** to it in the R2 dashboard (the `r2.dev` development URL is rate limited and not for production), and create an Object Read & Write token scoped to that bucket. Then, from a checkout on this machine:
+Already created and verified from elsewhere; this just proves the credentials work where the sync will actually run.
 
 ```bash
 git clone git@github.com:tomelliot/tomelliot.net.git && cd tomelliot.net
 git checkout spike/photo-gallery
-
-export R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... R2_BUCKET=...
-export PHOTO_BASE_URL=https://photos.tomelliot.net
-export IMMICH_URL=... IMMICH_API_KEY=... IMMICH_TAG=tomelliot.net
-
-node tools/build-gallery.mjs --source immich --dry-run    # nothing is written
-node tools/build-gallery.mjs --source immich --limit 2    # two photos, for real
+node tools/sync/verify-r2.mjs --env-file /tmp/.env
 ```
 
-If the signing is wrong you will see `r2 PUT … -> 401` or `403` immediately. Fix it in `tools/lib/targets.mjs`; the alternative is adding `@aws-sdk/client-s3`, which means introducing the project's first npm dependency and a `package.json` — acceptable if hand-rolled signing proves troublesome, but weigh it against putting a dependency tree in a container that holds both sets of credentials.
-
-Then confirm the two objects are actually reachable at `$PHOTO_BASE_URL/<stem>.avif` in a browser. A 200 from R2 but a 403 from the custom domain means the bucket's public access or domain binding is not configured.
+Expect four ticks and `R2 works`. A `fetch failed` on the public read is almost always the local resolver rather than Cloudflare — check with `dig @1.1.1.1 +short photos.tomelliot.net`, and if that answers but your machine does not, it is your DNS cache. (That is exactly what happened on the machine this was built on.)
 
 Requires ImageMagick with AVIF support (`magick -list format | grep AVIF`) and Node 20+.
 
@@ -115,7 +135,7 @@ Add `secrets/deploy_key.pub` to the repo's Deploy keys **with write access**.
 
 ### 4. The service
 
-Copy `tools/sync/docker-compose.example.yml` into the Immich stack and `tools/sync/env.example` to `.env` beside it. Fill it in. The service joins Immich's Docker network and reaches it at `http://immich-server:2283` — nothing is exposed to the internet, and the only outbound traffic is to R2 and GitHub. Check the network name in the compose file matches your stack (it assumes `immich_default`).
+Copy `tools/sync/docker-compose.example.yml` into the Immich stack and `tools/sync/env.example` to `.env` beside it, then merge in the R2 values from `/tmp/.env`. Only the Immich API key and the webhook secret are still missing at that point. The service joins Immich's Docker network and reaches it at `http://immich-server:2283` — nothing is exposed to the internet, and the only outbound traffic is to R2 and GitHub. Check the network name in the compose file matches your stack (it assumes `immich_default`).
 
 Start with `SYNC_DRY_RUN=true` for the first run: the pipeline executes fully, including uploads, but nothing is committed or pushed.
 

@@ -40,7 +40,7 @@ const AWS_ALGORITHM = "AWS4-HMAC-SHA256";
  * hash on every request, so nothing here streams — the objects are small
  * enough that holding one in memory is fine.
  */
-async function signedFetch({ accountId, accessKeyId, secretAccessKey, bucket }, method, key, body, contentType) {
+async function signedFetch({ accountId, accessKeyId, secretAccessKey, bucket }, method, key, body, extra = {}) {
   const crypto = await import("node:crypto");
   const host = `${accountId}.r2.cloudflarestorage.com`;
   const canonicalUri = `/${bucket}/${key.split("/").map(encodeURIComponent).join("/")}`;
@@ -57,7 +57,7 @@ async function signedFetch({ accountId, accessKeyId, secretAccessKey, bucket }, 
     host,
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": amzDate,
-    ...(contentType ? { "content-type": contentType } : {}),
+    ...extra,
   };
   const signedHeaders = Object.keys(headers).sort().join(";");
   const canonicalHeaders = Object.keys(headers)
@@ -101,10 +101,10 @@ export function r2Target({ accountId, accessKeyId, secretAccessKey, bucket, pref
 
   // Pointed at a stub, requests go out unsigned; only the real endpoint signs.
   const call = endpoint
-    ? async (method, key, body, contentType) => {
+    ? async (method, key, body, extra = {}) => {
         const res = await fetch(`${endpoint.replace(/\/$/, "")}/${bucket}/${key}`, {
           method,
-          headers: contentType ? { "content-type": contentType } : {},
+          headers: method === "PUT" ? extra : {},
           body: method === "PUT" ? body : undefined,
         });
         if (!res.ok && !(method === "DELETE" && res.status === 404)) {
@@ -112,13 +112,18 @@ export function r2Target({ accountId, accessKeyId, secretAccessKey, bucket, pref
         }
         return res;
       }
-    : (method, key, body, contentType) => signedFetch(creds, method, key, body, contentType);
+    : (method, key, body, extra) => signedFetch(creds, method, key, body, extra);
 
   return {
     name: `r2:${bucket}${prefix ? "/" + prefix : ""}`,
     base: base.replace(/\/$/, ""),
     async put(key, bytes, contentType) {
-      await call("PUT", withPrefix(key), bytes, contentType);
+      await call("PUT", withPrefix(key), bytes, {
+        "content-type": contentType,
+        // Filenames carry a hash of the source bytes, so a given URL's content
+        // can never change. Anything that fetches it may keep it forever.
+        "cache-control": "public, max-age=31536000, immutable",
+      });
     },
     async remove(keys) {
       for (const key of keys) await call("DELETE", withPrefix(key));

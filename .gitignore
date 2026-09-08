@@ -20,3 +20,11 @@ Thumbs.db
 # Built photo derivatives. Published to R2 by tools/build-gallery.mjs;
 # kept out of git so the repo does not carry image history.
 gallery/photos/
+
+# Wrangler scratch state
+.wrangler/
+
+# Local credentials for the gallery sync. Never commit these.
+.env
+tools/sync/.env
+secrets/

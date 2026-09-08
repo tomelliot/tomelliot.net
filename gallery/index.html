@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photos — Tom Elliot</title>
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/favicon/favicon-16x16.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/favicon/favicon-32x32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/favicon/apple-touch-icon.png"
+    />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <meta name="description" content="Photographs by Tom Elliot" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.tomelliot.net/gallery/" />
+    <meta property="og:title" content="Photos — Tom Elliot" />
+    <meta property="og:description" content="Photographs by Tom Elliot" />
+    <meta property="og:image" content="https://www.tomelliot.net/og.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: rgb(18, 20, 20);
+        --fg: rgb(226, 232, 240);
+        --fg-muted: rgba(226, 232, 240, 0.6);
+        /* The quietest text still has to clear 4.5:1 against the backdrop. */
+        --fg-faint: rgba(226, 232, 240, 0.55);
+        --tile-idle: rgba(226, 232, 240, 0.05);
+        --page-inline: clamp(1rem, 10vw, 200px);
+        --gap: clamp(3px, 0.5vw, 8px);
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        background-color: var(--bg);
+        color: var(--fg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* The home page puts the inset on main and caps the content inside it;
+         doing both on one element would subtract the inset from the cap. */
+      main {
+        padding: 3rem var(--page-inline) clamp(3rem, 10vw, 7rem);
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      /* Links inherit the home page's treatment: no underline until hover,
+         when a 2px rule slides in under the text. */
+      .text-link {
+        color: var(--fg);
+        text-decoration: none;
+        width: fit-content;
+        font-size: 16px;
+        border-bottom: 2px solid transparent;
+        transition: border-bottom 0.4s ease;
+      }
+
+      .text-link:hover {
+        border-bottom: 2px solid var(--fg);
+      }
+
+      .back {
+        display: inline-block;
+        margin-bottom: clamp(2.5rem, 6vw, 4rem);
+      }
+
+      .masthead {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        margin-bottom: clamp(2rem, 5vw, 3rem);
+      }
+
+      /* The headshot carries its own squircle in its alpha channel, so it needs
+         no clipping here — same as the home page. */
+      .avatar {
+        width: 72px;
+        height: 72px;
+        display: block;
+        flex-shrink: 0;
+      }
+
+      .title {
+        font-size: 24px;
+        font-weight: 400;
+      }
+
+      .meta {
+        font-size: 14px;
+        color: var(--fg-muted);
+        margin-top: 0.25rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--gap);
+      }
+
+      /* Below the first breakpoint the grid runs to the screen edges, cancelling
+         the inset that keeps the heading in the text column. */
+      @media (max-width: 699px) {
+        .grid {
+          margin-inline: calc(-1 * var(--page-inline));
+        }
+      }
+
+      @media (min-width: 700px) {
+        .grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+
+      @media (min-width: 1000px) {
+        .grid {
+          grid-template-columns: repeat(5, 1fr);
+        }
+      }
+
+      .tile {
+        display: block;
+        position: relative;
+        aspect-ratio: 1;
+        overflow: hidden;
+        background-color: var(--tile-idle);
+        cursor: zoom-in;
+      }
+
+      .tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.6s var(--ease);
+      }
+
+      .tile:hover img,
+      .tile:focus-visible img {
+        transform: scale(1.045);
+      }
+
+      .tile:focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: 2px;
+      }
+
+      /* Tiles settle in as they scroll into view. JS adds .in; without JS the
+         :not(.reveal) default leaves every tile fully visible. */
+      .reveal .tile {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+
+      .reveal .tile.in {
+        opacity: 1;
+        transform: none;
+        transition: opacity 0.7s var(--ease) var(--d, 0ms),
+          transform 0.7s var(--ease) var(--d, 0ms);
+      }
+
+      /* ---- Lightbox ---- */
+
+      .lightbox[hidden] {
+        display: none;
+      }
+
+      .lightbox:focus {
+        outline: none;
+      }
+
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        padding: clamp(1rem, 4vw, 3rem);
+      }
+
+      .lb-backdrop {
+        position: absolute;
+        inset: 0;
+        background-color: rgba(10, 11, 11, 0.985);
+        opacity: 0;
+        transition: opacity 0.32s var(--ease);
+      }
+
+      .lightbox.is-open .lb-backdrop {
+        opacity: 1;
+      }
+
+      .lb-figure {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.9rem;
+        max-width: 100%;
+        max-height: 100%;
+      }
+
+      .lb-img {
+        display: block;
+        max-width: min(100%, 1400px);
+        /* Leaves room for the caption line and the page padding. */
+        max-height: calc(100vh - clamp(6rem, 14vw, 9rem));
+        object-fit: contain;
+        transform-origin: top left;
+      }
+
+      .lb-caption {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1.5rem;
+        width: 100%;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.3s ease 0.15s;
+      }
+
+      .lightbox.is-open .lb-caption {
+        opacity: 1;
+      }
+
+      .lb-place {
+        color: var(--fg-muted);
+      }
+
+      .lb-index {
+        color: var(--fg-faint);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .lb-btn {
+        position: absolute;
+        z-index: 2;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border: 0;
+        border-radius: 50%;
+        background-color: transparent;
+        color: var(--fg);
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.3s ease 0.15s, background-color 0.2s ease;
+      }
+
+      .lightbox.is-open .lb-btn {
+        opacity: 0.55;
+      }
+
+      .lightbox.is-open .lb-btn:hover,
+      .lightbox.is-open .lb-btn:focus-visible {
+        opacity: 1;
+        background-color: rgba(226, 232, 240, 0.1);
+      }
+
+      .lb-btn:focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: 2px;
+      }
+
+      .lb-btn svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .lb-close {
+        top: clamp(0.75rem, 2vw, 1.5rem);
+        right: clamp(0.75rem, 2vw, 1.5rem);
+      }
+
+      .lb-prev,
+      .lb-next {
+        top: 50%;
+        margin-top: -22px;
+      }
+
+      .lb-prev {
+        left: clamp(0.25rem, 1.5vw, 1.5rem);
+      }
+
+      .lb-next {
+        right: clamp(0.25rem, 1.5vw, 1.5rem);
+      }
+
+      .lb-btn[disabled] {
+        opacity: 0.15 !important;
+        cursor: default;
+        background-color: transparent !important;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+
+        .reveal .tile {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+    <script
+      async
+      src="https://plausible.io/js/pa-SxoBRI2d9m7vuUghZ1BI2.js"
+    ></script>
+    <script>
+      (window.plausible =
+        window.plausible ||
+        function () {
+          (plausible.q = plausible.q || []).push(arguments);
+        }),
+        (plausible.init =
+          plausible.init ||
+          function (i) {
+            plausible.o = i || {};
+          });
+      plausible.init();
+    </script>
+  </head>
+  <body>
+    <main>
+      <div class="wrap">
+        <a class="text-link back" href="/">Tom Elliot</a>
+
+        <header class="masthead">
+          <img class="avatar" src="/headshot.avif" alt="" width="72" height="72" />
+          <div>
+            <h1 class="title">Photos</h1>
+            <p class="meta"><!-- meta:start -->175 photographs · 2016–2025<!-- meta:end --></p>
+          </div>
+        </header>
+
+        <div class="grid" id="grid"><!-- tiles:start -->
+            <a class="tile" href="/gallery/photos/18039893306346219.avif" aria-label="Photo: Berlin · 2025"
+              ><img src="/gallery/photos/18039893306346219-t.avif" alt="Photograph — Berlin · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17954052788975071.avif" aria-label="Photo: South Tyrol · 2025"
+              ><img src="/gallery/photos/17954052788975071-t.avif" alt="Photograph — South Tyrol · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18151779520378051.avif" aria-label="Photo: Lake Garda · 2025"
+              ><img src="/gallery/photos/18151779520378051-t.avif" alt="Photograph — Lake Garda · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18417891784096857.avif" aria-label="Photo: Dolomites · 2025"
+              ><img src="/gallery/photos/18417891784096857-t.avif" alt="Photograph — Dolomites · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18085713874685039.avif" aria-label="Photo: South Tyrol · 2025"
+              ><img src="/gallery/photos/18085713874685039-t.avif" alt="Photograph — South Tyrol · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17881955883344999.avif" aria-label="Photo: Lake Garda · 2025"
+              ><img src="/gallery/photos/17881955883344999-t.avif" alt="Photograph — Lake Garda · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18114702253458563.avif" aria-label="Photo: Berlin · 2025"
+              ><img src="/gallery/photos/18114702253458563-t.avif" alt="Photograph — Berlin · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18047605994213448.avif" aria-label="Photo: Sydney · 2025"
+              ><img src="/gallery/photos/18047605994213448-t.avif" alt="Photograph — Sydney · 2025" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17964937697800275.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/17964937697800275-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18043268972501193.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18043268972501193-t.avif" alt="Photograph — 2024" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18043392899298792.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/18043392899298792-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17986481591571592.avif" aria-label="Photo: Estonia · 2024"
+              ><img src="/gallery/photos/17986481591571592-t.avif" alt="Photograph — Estonia · 2024" width="600" height="600" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18034563626297326.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/18034563626297326-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18048757285691474.avif" aria-label="Photo: Saarland · 2024"
+              ><img src="/gallery/photos/18048757285691474-t.avif" alt="Photograph — Saarland · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17996275778596991.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/17996275778596991-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18011944376472097.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/18011944376472097-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18425228653056179.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/18425228653056179-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17858877765108302.avif" aria-label="Photo: Berlin · 2024"
+              ><img src="/gallery/photos/17858877765108302-t.avif" alt="Photograph — Berlin · 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18003967403456699.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18003967403456699-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18299933305153799.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18299933305153799-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18034548568705841.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18034548568705841-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18028358809928489.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18028358809928489-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18269470978203196.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18269470978203196-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18312107242135358.avif" aria-label="Photo: 2024"
+              ><img src="/gallery/photos/18312107242135358-t.avif" alt="Photograph — 2024" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17996893388157238.avif" aria-label="Photo: Boston · 2023"
+              ><img src="/gallery/photos/17996893388157238-t.avif" alt="Photograph — Boston · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17874557549948762.avif" aria-label="Photo: Verona · 2023"
+              ><img src="/gallery/photos/17874557549948762-t.avif" alt="Photograph — Verona · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18008610007857173.avif" aria-label="Photo: Verona · 2023"
+              ><img src="/gallery/photos/18008610007857173-t.avif" alt="Photograph — Verona · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17988780224242661.avif" aria-label="Photo: Dolomites · 2023"
+              ><img src="/gallery/photos/17988780224242661-t.avif" alt="Photograph — Dolomites · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18000665485962991.avif" aria-label="Photo: Lombardy · 2023"
+              ><img src="/gallery/photos/18000665485962991-t.avif" alt="Photograph — Lombardy · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17891254703818724.avif" aria-label="Photo: Bavaria · 2023"
+              ><img src="/gallery/photos/17891254703818724-t.avif" alt="Photograph — Bavaria · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18056870503402921.avif" aria-label="Photo: Berlin · 2023"
+              ><img src="/gallery/photos/18056870503402921-t.avif" alt="Photograph — Berlin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17983524874908580.avif" aria-label="Photo: Berlin · 2023"
+              ><img src="/gallery/photos/17983524874908580-t.avif" alt="Photograph — Berlin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17994172720801622.avif" aria-label="Photo: Berlin · 2023"
+              ><img src="/gallery/photos/17994172720801622-t.avif" alt="Photograph — Berlin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17982153562941314.avif" aria-label="Photo: Porto · 2023"
+              ><img src="/gallery/photos/17982153562941314-t.avif" alt="Photograph — Porto · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17960674811146686.avif" aria-label="Photo: Schwerin · 2023"
+              ><img src="/gallery/photos/17960674811146686-t.avif" alt="Photograph — Schwerin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17941166159467411.avif" aria-label="Photo: Berlin · 2023"
+              ><img src="/gallery/photos/17941166159467411-t.avif" alt="Photograph — Berlin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18080939566325463.avif" aria-label="Photo: Berlin · 2023"
+              ><img src="/gallery/photos/18080939566325463-t.avif" alt="Photograph — Berlin · 2023" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17917461161627200.avif" aria-label="Photo: Berlin · 2022"
+              ><img src="/gallery/photos/17917461161627200-t.avif" alt="Photograph — Berlin · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18012342262459353.avif" aria-label="Photo: Istanbul · 2022"
+              ><img src="/gallery/photos/18012342262459353-t.avif" alt="Photograph — Istanbul · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18024466861419686.avif" aria-label="Photo: Istanbul · 2022"
+              ><img src="/gallery/photos/18024466861419686-t.avif" alt="Photograph — Istanbul · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17964166708933037.avif" aria-label="Photo: Fethiye · 2022"
+              ><img src="/gallery/photos/17964166708933037-t.avif" alt="Photograph — Fethiye · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18183216268237898.avif" aria-label="Photo: Pamukkale · 2022"
+              ><img src="/gallery/photos/18183216268237898-t.avif" alt="Photograph — Pamukkale · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17989393066561632.avif" aria-label="Photo: Pamukkale · 2022"
+              ><img src="/gallery/photos/17989393066561632-t.avif" alt="Photograph — Pamukkale · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18216660694092172.avif" aria-label="Photo: Pamukkale · 2022"
+              ><img src="/gallery/photos/18216660694092172-t.avif" alt="Photograph — Pamukkale · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17929239467325305.avif" aria-label="Photo: Munich · 2022"
+              ><img src="/gallery/photos/17929239467325305-t.avif" alt="Photograph — Munich · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17902875575641639.avif" aria-label="Photo: St. Gallen · 2022"
+              ><img src="/gallery/photos/17902875575641639-t.avif" alt="Photograph — St. Gallen · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17867873483726314.avif" aria-label="Photo: Bregenz · 2022"
+              ><img src="/gallery/photos/17867873483726314-t.avif" alt="Photograph — Bregenz · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18045144574331424.avif" aria-label="Photo: Brandenburg · 2022"
+              ><img src="/gallery/photos/18045144574331424-t.avif" alt="Photograph — Brandenburg · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17917423370433341.avif" aria-label="Photo: Dubrovnik · 2022"
+              ><img src="/gallery/photos/17917423370433341-t.avif" alt="Photograph — Dubrovnik · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18146655733247608.avif" aria-label="Photo: Dubrovnik · 2022"
+              ><img src="/gallery/photos/18146655733247608-t.avif" alt="Photograph — Dubrovnik · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17944832266818857.avif" aria-label="Photo: Berlin · 2022"
+              ><img src="/gallery/photos/17944832266818857-t.avif" alt="Photograph — Berlin · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18185555179093699.avif" aria-label="Photo: Sydney · 2022"
+              ><img src="/gallery/photos/18185555179093699-t.avif" alt="Photograph — Sydney · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17948834293678516.avif" aria-label="Photo: Sydney · 2022"
+              ><img src="/gallery/photos/17948834293678516-t.avif" alt="Photograph — Sydney · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17901924320453272.avif" aria-label="Photo: Sydney · 2022"
+              ><img src="/gallery/photos/17901924320453272-t.avif" alt="Photograph — Sydney · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17935082023861472.avif" aria-label="Photo: Sydney · 2022"
+              ><img src="/gallery/photos/17935082023861472-t.avif" alt="Photograph — Sydney · 2022" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17908514687332267.avif" aria-label="Photo: Brandenburg · 2021"
+              ><img src="/gallery/photos/17908514687332267-t.avif" alt="Photograph — Brandenburg · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18210521353101683.avif" aria-label="Photo: Berlin · 2021"
+              ><img src="/gallery/photos/18210521353101683-t.avif" alt="Photograph — Berlin · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17904915788109458.avif" aria-label="Photo: Berlin · 2021"
+              ><img src="/gallery/photos/17904915788109458-t.avif" alt="Photograph — Berlin · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17896760396183749.avif" aria-label="Photo: Lisbon · 2021"
+              ><img src="/gallery/photos/17896760396183749-t.avif" alt="Photograph — Lisbon · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17887940006306283.avif" aria-label="Photo: Berlin · 2021"
+              ><img src="/gallery/photos/17887940006306283-t.avif" alt="Photograph — Berlin · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17897507018231601.avif" aria-label="Photo: Berlin · 2021"
+              ><img src="/gallery/photos/17897507018231601-t.avif" alt="Photograph — Berlin · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17909548352004543.avif" aria-label="Photo: Berlin · 2021"
+              ><img src="/gallery/photos/17909548352004543-t.avif" alt="Photograph — Berlin · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17937353281514955.avif" aria-label="Photo: Dolomites · 2021"
+              ><img src="/gallery/photos/17937353281514955-t.avif" alt="Photograph — Dolomites · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17861506019523649.avif" aria-label="Photo: Lake Garda · 2021"
+              ><img src="/gallery/photos/17861506019523649-t.avif" alt="Photograph — Lake Garda · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17871941060352150.avif" aria-label="Photo: Dolomites · 2021"
+              ><img src="/gallery/photos/17871941060352150-t.avif" alt="Photograph — Dolomites · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18082160323270005.avif" aria-label="Photo: Gran Canaria · 2021"
+              ><img src="/gallery/photos/18082160323270005-t.avif" alt="Photograph — Gran Canaria · 2021" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17875635595975023.avif" aria-label="Photo: Berlin · 2020"
+              ><img src="/gallery/photos/17875635595975023-t.avif" alt="Photograph — Berlin · 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18056659636251451.avif" aria-label="Photo: Berlin · 2020"
+              ><img src="/gallery/photos/18056659636251451-t.avif" alt="Photograph — Berlin · 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17905555405503967.avif" aria-label="Photo: Berlin · 2020"
+              ><img src="/gallery/photos/17905555405503967-t.avif" alt="Photograph — Berlin · 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17888322934677706.avif" aria-label="Photo: Berlin · 2020"
+              ><img src="/gallery/photos/17888322934677706-t.avif" alt="Photograph — Berlin · 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17893656955466752.avif" aria-label="Photo: Berlin · 2020"
+              ><img src="/gallery/photos/17893656955466752-t.avif" alt="Photograph — Berlin · 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18020972884262259.avif" aria-label="Photo: 2020"
+              ><img src="/gallery/photos/18020972884262259-t.avif" alt="Photograph — 2020" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17859995029640128.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/17859995029640128-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17870652274521333.avif" aria-label="Photo: Naples · 2019"
+              ><img src="/gallery/photos/17870652274521333-t.avif" alt="Photograph — Naples · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17988900622304419.avif" aria-label="Photo: Amalfi Coast · 2019"
+              ><img src="/gallery/photos/17988900622304419-t.avif" alt="Photograph — Amalfi Coast · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18082782517091480.avif" aria-label="Photo: Amalfi Coast · 2019"
+              ><img src="/gallery/photos/18082782517091480-t.avif" alt="Photograph — Amalfi Coast · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18115713820019727.avif" aria-label="Photo: Naples · 2019"
+              ><img src="/gallery/photos/18115713820019727-t.avif" alt="Photograph — Naples · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17867859514447510.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/17867859514447510-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18051925237166385.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/18051925237166385-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18075501790059852.avif" aria-label="Photo: Saarland · 2019"
+              ><img src="/gallery/photos/18075501790059852-t.avif" alt="Photograph — Saarland · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18061796407077456.avif" aria-label="Photo: Lisbon · 2019"
+              ><img src="/gallery/photos/18061796407077456-t.avif" alt="Photograph — Lisbon · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17985918610246648.avif" aria-label="Photo: Lisbon · 2019"
+              ><img src="/gallery/photos/17985918610246648-t.avif" alt="Photograph — Lisbon · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17861999101394942.avif" aria-label="Photo: Lisbon · 2019"
+              ><img src="/gallery/photos/17861999101394942-t.avif" alt="Photograph — Lisbon · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17859069301391633.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/17859069301391633-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18058162276060976.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/18058162276060976-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17842202740430367.avif" aria-label="Photo: Berlin · 2019"
+              ><img src="/gallery/photos/17842202740430367-t.avif" alt="Photograph — Berlin · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18013136491092385.avif" aria-label="Photo: Arlberg · 2019"
+              ><img src="/gallery/photos/18013136491092385-t.avif" alt="Photograph — Arlberg · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17860725349338251.avif" aria-label="Photo: Bregenz · 2019"
+              ><img src="/gallery/photos/17860725349338251-t.avif" alt="Photograph — Bregenz · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18039036664032848.avif" aria-label="Photo: St. Gallen · 2019"
+              ><img src="/gallery/photos/18039036664032848-t.avif" alt="Photograph — St. Gallen · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/18007015648149406.avif" aria-label="Photo: St. Gallen · 2019"
+              ><img src="/gallery/photos/18007015648149406-t.avif" alt="Photograph — St. Gallen · 2019" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17872696405294595.avif" aria-label="Photo: 2018"
+              ><img src="/gallery/photos/17872696405294595-t.avif" alt="Photograph — 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17893922530255241.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17893922530255241-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17888655076248463.avif" aria-label="Photo: Brandenburg · 2018"
+              ><img src="/gallery/photos/17888655076248463-t.avif" alt="Photograph — Brandenburg · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17977543381045567.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17977543381045567-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17961094417017226.avif" aria-label="Photo: Lisbon · 2018"
+              ><img src="/gallery/photos/17961094417017226-t.avif" alt="Photograph — Lisbon · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17917112845199155.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17917112845199155-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17898825538206159.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17898825538206159-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17938095703093986.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17938095703093986-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17933278693138718.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17933278693138718-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17894836330209402.avif" aria-label="Photo: Norway · 2018"
+              ><img src="/gallery/photos/17894836330209402-t.avif" alt="Photograph — Norway · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17883173662234507.avif" aria-label="Photo: Norway · 2018"
+              ><img src="/gallery/photos/17883173662234507-t.avif" alt="Photograph — Norway · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17950889599021964.avif" aria-label="Photo: Riga · 2018"
+              ><img src="/gallery/photos/17950889599021964-t.avif" alt="Photograph — Riga · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17938478452105258.avif" aria-label="Photo: Riga · 2018"
+              ><img src="/gallery/photos/17938478452105258-t.avif" alt="Photograph — Riga · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17844080689274485.avif" aria-label="Photo: Saaremaa · 2018"
+              ><img src="/gallery/photos/17844080689274485-t.avif" alt="Photograph — Saaremaa · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17950666537025919.avif" aria-label="Photo: Saaremaa · 2018"
+              ><img src="/gallery/photos/17950666537025919-t.avif" alt="Photograph — Saaremaa · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17952303274055148.avif" aria-label="Photo: Riga · 2018"
+              ><img src="/gallery/photos/17952303274055148-t.avif" alt="Photograph — Riga · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17922323365176759.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17922323365176759-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17918232196162321.avif" aria-label="Photo: 2018"
+              ><img src="/gallery/photos/17918232196162321-t.avif" alt="Photograph — 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17899537507194896.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17899537507194896-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17926316851018181.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17926316851018181-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17848311556242443.avif" aria-label="Photo: French Alps · 2018"
+              ><img src="/gallery/photos/17848311556242443-t.avif" alt="Photograph — French Alps · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17920920079029336.avif" aria-label="Photo: French Alps · 2018"
+              ><img src="/gallery/photos/17920920079029336-t.avif" alt="Photograph — French Alps · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17890150042170307.avif" aria-label="Photo: Chamonix · 2018"
+              ><img src="/gallery/photos/17890150042170307-t.avif" alt="Photograph — Chamonix · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17906717176112346.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17906717176112346-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17890140106176390.avif" aria-label="Photo: Berlin · 2018"
+              ><img src="/gallery/photos/17890140106176390-t.avif" alt="Photograph — Berlin · 2018" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17857085815204401.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17857085815204401-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17928989725009809.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17928989725009809-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17917147270058104.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17917147270058104-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17890051318184649.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17890051318184649-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17899256074107769.avif" aria-label="Photo: Rila Mountains · 2017"
+              ><img src="/gallery/photos/17899256074107769-t.avif" alt="Photograph — Rila Mountains · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17911423123046067.avif" aria-label="Photo: Rila Mountains · 2017"
+              ><img src="/gallery/photos/17911423123046067-t.avif" alt="Photograph — Rila Mountains · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17912406037016233.avif" aria-label="Photo: Rila Mountains · 2017"
+              ><img src="/gallery/photos/17912406037016233-t.avif" alt="Photograph — Rila Mountains · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17886472210145769.avif" aria-label="Photo: Rila Mountains · 2017"
+              ><img src="/gallery/photos/17886472210145769-t.avif" alt="Photograph — Rila Mountains · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17888342554186001.avif" aria-label="Photo: Sofia · 2017"
+              ><img src="/gallery/photos/17888342554186001-t.avif" alt="Photograph — Sofia · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17912286097019367.avif" aria-label="Photo: Sofia · 2017"
+              ><img src="/gallery/photos/17912286097019367-t.avif" alt="Photograph — Sofia · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17886589435189267.avif" aria-label="Photo: Sofia · 2017"
+              ><img src="/gallery/photos/17886589435189267-t.avif" alt="Photograph — Sofia · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17892997921090724.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17892997921090724-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17908435870036408.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17908435870036408-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17899136593008089.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17899136593008089-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17887104643100700.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17887104643100700-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17870815321175690.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17870815321175690-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17898375055026400.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17898375055026400-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17869809754184740.avif" aria-label="Photo: Rotterdam · 2017"
+              ><img src="/gallery/photos/17869809754184740-t.avif" alt="Photograph — Rotterdam · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17869042786156432.avif" aria-label="Photo: Rotterdam · 2017"
+              ><img src="/gallery/photos/17869042786156432-t.avif" alt="Photograph — Rotterdam · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17877223300094123.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17877223300094123-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17880772435128709.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17880772435128709-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17867426080159754.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17867426080159754-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17866489702189239.avif" aria-label="Photo: 2017"
+              ><img src="/gallery/photos/17866489702189239-t.avif" alt="Photograph — 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17884186156066184.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17884186156066184-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17875882744076214.avif" aria-label="Photo: Dublin · 2017"
+              ><img src="/gallery/photos/17875882744076214-t.avif" alt="Photograph — Dublin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17861867194130072.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17861867194130072-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17884379689007123.avif" aria-label="Photo: Berlin · 2017"
+              ><img src="/gallery/photos/17884379689007123-t.avif" alt="Photograph — Berlin · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17882304952051009.avif" aria-label="Photo: Hamburg · 2017"
+              ><img src="/gallery/photos/17882304952051009-t.avif" alt="Photograph — Hamburg · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17857429243177768.avif" aria-label="Photo: Hamburg · 2017"
+              ><img src="/gallery/photos/17857429243177768-t.avif" alt="Photograph — Hamburg · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17880511387021387.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17880511387021387-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17881208746053141.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17881208746053141-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17859913669137903.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17859913669137903-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17882623948044988.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17882623948044988-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17870749153096544.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17870749153096544-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17881819225026569.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17881819225026569-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17882409349037425.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17882409349037425-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17875712173066767.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17875712173066767-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17859750055140502.avif" aria-label="Photo: Singapore · 2017"
+              ><img src="/gallery/photos/17859750055140502-t.avif" alt="Photograph — Singapore · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17877178864040755.avif" aria-label="Photo: Los Angeles · 2017"
+              ><img src="/gallery/photos/17877178864040755-t.avif" alt="Photograph — Los Angeles · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17874767719031079.avif" aria-label="Photo: Joshua Tree · 2017"
+              ><img src="/gallery/photos/17874767719031079-t.avif" alt="Photograph — Joshua Tree · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17852656339157269.avif" aria-label="Photo: Palm Springs · 2017"
+              ><img src="/gallery/photos/17852656339157269-t.avif" alt="Photograph — Palm Springs · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17876138317008664.avif" aria-label="Photo: San Francisco · 2017"
+              ><img src="/gallery/photos/17876138317008664-t.avif" alt="Photograph — San Francisco · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17851945285153507.avif" aria-label="Photo: Los Angeles · 2017"
+              ><img src="/gallery/photos/17851945285153507-t.avif" alt="Photograph — Los Angeles · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17847182524166260.avif" aria-label="Photo: Melbourne · 2017"
+              ><img src="/gallery/photos/17847182524166260-t.avif" alt="Photograph — Melbourne · 2017" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17855756497084691.avif" aria-label="Photo: Lake Tahoe · 2016"
+              ><img src="/gallery/photos/17855756497084691-t.avif" alt="Photograph — Lake Tahoe · 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17842592617163642.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17842592617163642-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17846822407097176.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17846822407097176-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17856263734050774.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17856263734050774-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17846717659118438.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17846717659118438-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17855355637012659.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17855355637012659-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17846095681106910.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17846095681106910-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17854931563044165.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17854931563044165-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17854795999053642.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17854795999053642-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17856331255053957.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17856331255053957-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17845785493084255.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17845785493084255-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17854317232001481.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17854317232001481-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17855393884036356.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17855393884036356-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17855717524024152.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17855717524024152-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17854744597061465.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17854744597061465-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+            <a class="tile" href="/gallery/photos/17845416157093488.avif" aria-label="Photo: 2016"
+              ><img src="/gallery/photos/17845416157093488-t.avif" alt="Photograph — 2016" width="600" height="600" loading="lazy" decoding="async"
+            /></a>
+          <!-- tiles:end --></div>
+      </div>
+    </main>
+
+    <div
+      class="lightbox"
+      id="lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+      tabindex="-1"
+      hidden
+    >
+      <div class="lb-backdrop" data-close></div>
+      <button class="lb-btn lb-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+      <button class="lb-btn lb-prev" type="button" aria-label="Previous photo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" />
+        </svg>
+      </button>
+      <button class="lb-btn lb-next" type="button" aria-label="Next photo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      <figure class="lb-figure">
+        <img class="lb-img" id="lbImg" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="" />
+        <figcaption class="lb-caption">
+          <span class="lb-place" id="lbPlace"></span>
+          <span class="lb-index" id="lbIndex"></span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <script>
+      /* photos:start */
+      const PHOTOS = [{"id":"18039893306346219","y":2025,"p":"Berlin","w":1440,"h":1068},{"id":"17954052788975071","y":2025,"p":"South Tyrol","w":1440,"h":1440},{"id":"18151779520378051","y":2025,"p":"Lake Garda","w":1440,"h":1440},{"id":"18417891784096857","y":2025,"p":"Dolomites","w":1440,"h":1080},{"id":"18085713874685039","y":2025,"p":"South Tyrol","w":1440,"h":1080},{"id":"17881955883344999","y":2025,"p":"Lake Garda","w":1200,"h":1600},{"id":"18114702253458563","y":2025,"p":"Berlin","w":1440,"h":1080},{"id":"18047605994213448","y":2025,"p":"Sydney","w":1440,"h":1440},{"id":"17964937697800275","y":2024,"p":"Berlin","w":1280,"h":1600},{"id":"18043268972501193","y":2024,"w":1280,"h":1600},{"id":"18043392899298792","y":2024,"p":"Berlin","w":1440,"h":1080},{"id":"17986481591571592","y":2024,"p":"Estonia","w":1440,"h":1080},{"id":"18034563626297326","y":2024,"p":"Berlin","w":1440,"h":1080},{"id":"18048757285691474","y":2024,"p":"Saarland","w":1440,"h":1440},{"id":"17996275778596991","y":2024,"p":"Berlin","w":1440,"h":1440},{"id":"18011944376472097","y":2024,"p":"Berlin","w":1440,"h":1440},{"id":"18425228653056179","y":2024,"p":"Berlin","w":1280,"h":1600},{"id":"17858877765108302","y":2024,"p":"Berlin","w":1440,"h":1440},{"id":"18003967403456699","y":2024,"w":1440,"h":1440},{"id":"18299933305153799","y":2024,"w":1440,"h":1440},{"id":"18034548568705841","y":2024,"w":1440,"h":1440},{"id":"18028358809928489","y":2024,"w":1440,"h":1440},{"id":"18269470978203196","y":2024,"w":1440,"h":1440},{"id":"18312107242135358","y":2024,"w":1440,"h":1440},{"id":"17996893388157238","y":2023,"p":"Boston","w":1440,"h":1440},{"id":"17874557549948762","y":2023,"p":"Verona","w":1440,"h":1440},{"id":"18008610007857173","y":2023,"p":"Verona","w":1440,"h":1440},{"id":"17988780224242661","y":2023,"p":"Dolomites","w":1440,"h":1080},{"id":"18000665485962991","y":2023,"p":"Lombardy","w":1280,"h":1600},{"id":"17891254703818724","y":2023,"p":"Bavaria","w":1440,"h":1080},{"id":"18056870503402921","y":2023,"p":"Berlin","w":1280,"h":1600},{"id":"17983524874908580","y":2023,"p":"Berlin","w":1440,"h":1080},{"id":"17994172720801622","y":2023,"p":"Berlin","w":1440,"h":1080},{"id":"17982153562941314","y":2023,"p":"Porto","w":1280,"h":1600},{"id":"17960674811146686","y":2023,"p":"Schwerin","w":1440,"h":1440},{"id":"17941166159467411","y":2023,"p":"Berlin","w":1280,"h":1600},{"id":"18080939566325463","y":2023,"p":"Berlin","w":1440,"h":1440},{"id":"17917461161627200","y":2022,"p":"Berlin","w":1440,"h":1440},{"id":"18012342262459353","y":2022,"p":"Istanbul","w":1440,"h":1440},{"id":"18024466861419686","y":2022,"p":"Istanbul","w":768,"h":960},{"id":"17964166708933037","y":2022,"p":"Fethiye","w":1280,"h":1600},{"id":"18183216268237898","y":2022,"p":"Pamukkale","w":1440,"h":1440},{"id":"17989393066561632","y":2022,"p":"Pamukkale","w":1440,"h":1440},{"id":"18216660694092172","y":2022,"p":"Pamukkale","w":1440,"h":1440},{"id":"17929239467325305","y":2022,"p":"Munich","w":1280,"h":1600},{"id":"17902875575641639","y":2022,"p":"St. Gallen","w":1440,"h":1084},{"id":"17867873483726314","y":2022,"p":"Bregenz","w":1440,"h":1084},{"id":"18045144574331424","y":2022,"p":"Brandenburg","w":1440,"h":1084},{"id":"17917423370433341","y":2022,"p":"Dubrovnik","w":1440,"h":1440},{"id":"18146655733247608","y":2022,"p":"Dubrovnik","w":1280,"h":1600},{"id":"17944832266818857","y":2022,"p":"Berlin","w":1440,"h":1084},{"id":"18185555179093699","y":2022,"p":"Sydney","w":1440,"h":1440},{"id":"17948834293678516","y":2022,"p":"Sydney","w":1440,"h":1440},{"id":"17901924320453272","y":2022,"p":"Sydney","w":1440,"h":1440},{"id":"17935082023861472","y":2022,"p":"Sydney","w":1440,"h":1440},{"id":"17908514687332267","y":2021,"p":"Brandenburg","w":1440,"h":1084},{"id":"18210521353101683","y":2021,"p":"Berlin","w":1440,"h":1084},{"id":"17904915788109458","y":2021,"p":"Berlin","w":1440,"h":1440},{"id":"17896760396183749","y":2021,"p":"Lisbon","w":1440,"h":1440},{"id":"17887940006306283","y":2021,"p":"Berlin","w":1440,"h":1440},{"id":"17897507018231601","y":2021,"p":"Berlin","w":1440,"h":1440},{"id":"17909548352004543","y":2021,"p":"Berlin","w":1440,"h":1080},{"id":"17937353281514955","y":2021,"p":"Dolomites","w":1440,"h":1440},{"id":"17861506019523649","y":2021,"p":"Lake Garda","w":1440,"h":1440},{"id":"17871941060352150","y":2021,"p":"Dolomites","w":1440,"h":1440},{"id":"18082160323270005","y":2021,"p":"Gran Canaria","w":1440,"h":1440},{"id":"17875635595975023","y":2020,"p":"Berlin","w":1440,"h":1440},{"id":"18056659636251451","y":2020,"p":"Berlin","w":1440,"h":1080},{"id":"17905555405503967","y":2020,"p":"Berlin","w":1440,"h":1440},{"id":"17888322934677706","y":2020,"p":"Berlin","w":1440,"h":1440},{"id":"17893656955466752","y":2020,"p":"Berlin","w":1080,"h":810},{"id":"18020972884262259","y":2020,"w":1080,"h":1350},{"id":"17859995029640128","y":2019,"p":"Berlin","w":1080,"h":1350},{"id":"17870652274521333","y":2019,"p":"Naples","w":1080,"h":1350},{"id":"17988900622304419","y":2019,"p":"Amalfi Coast","w":1080,"h":1080},{"id":"18082782517091480","y":2019,"p":"Amalfi Coast","w":1080,"h":810},{"id":"18115713820019727","y":2019,"p":"Naples","w":1080,"h":1080},{"id":"17867859514447510","y":2019,"p":"Berlin","w":1080,"h":1080},{"id":"18051925237166385","y":2019,"p":"Berlin","w":1080,"h":1080},{"id":"18075501790059852","y":2019,"p":"Saarland","w":1080,"h":810},{"id":"18061796407077456","y":2019,"p":"Lisbon","w":1080,"h":810},{"id":"17985918610246648","y":2019,"p":"Lisbon","w":1080,"h":810},{"id":"17861999101394942","y":2019,"p":"Lisbon","w":1080,"h":810},{"id":"17859069301391633","y":2019,"p":"Berlin","w":1080,"h":810},{"id":"18058162276060976","y":2019,"p":"Berlin","w":1080,"h":810},{"id":"17842202740430367","y":2019,"p":"Berlin","w":1080,"h":1080},{"id":"18013136491092385","y":2019,"p":"Arlberg","w":1080,"h":1080},{"id":"17860725349338251","y":2019,"p":"Bregenz","w":1080,"h":1080},{"id":"18039036664032848","y":2019,"p":"St. Gallen","w":1080,"h":1080},{"id":"18007015648149406","y":2019,"p":"St. Gallen","w":1080,"h":1080},{"id":"17872696405294595","y":2018,"w":1080,"h":1350},{"id":"17893922530255241","y":2018,"p":"Berlin","w":1080,"h":1350},{"id":"17888655076248463","y":2018,"p":"Brandenburg","w":1080,"h":810},{"id":"17977543381045567","y":2018,"p":"Berlin","w":1080,"h":810},{"id":"17961094417017226","y":2018,"p":"Lisbon","w":1080,"h":1080},{"id":"17917112845199155","y":2018,"p":"Berlin","w":1080,"h":810},{"id":"17898825538206159","y":2018,"p":"Berlin","w":1080,"h":1350},{"id":"17938095703093986","y":2018,"p":"Berlin","w":1080,"h":1081},{"id":"17933278693138718","y":2018,"p":"Berlin","w":1080,"h":1080},{"id":"17894836330209402","y":2018,"p":"Norway","w":1080,"h":1350},{"id":"17883173662234507","y":2018,"p":"Norway","w":1080,"h":810},{"id":"17950889599021964","y":2018,"p":"Riga","w":1080,"h":1080},{"id":"17938478452105258","y":2018,"p":"Riga","w":1080,"h":1350},{"id":"17844080689274485","y":2018,"p":"Saaremaa","w":1080,"h":810},{"id":"17950666537025919","y":2018,"p":"Saaremaa","w":1080,"h":810},{"id":"17952303274055148","y":2018,"p":"Riga","w":1080,"h":1350},{"id":"17922323365176759","y":2018,"p":"Berlin","w":1080,"h":810},{"id":"17918232196162321","y":2018,"w":1080,"h":1080},{"id":"17899537507194896","y":2018,"p":"Berlin","w":1080,"h":810},{"id":"17926316851018181","y":2018,"p":"Berlin","w":1080,"h":889},{"id":"17848311556242443","y":2018,"p":"French Alps","w":1080,"h":1080},{"id":"17920920079029336","y":2018,"p":"French Alps","w":1080,"h":1080},{"id":"17890150042170307","y":2018,"p":"Chamonix","w":1080,"h":1080},{"id":"17906717176112346","y":2018,"p":"Berlin","w":1080,"h":1080},{"id":"17890140106176390","y":2018,"p":"Berlin","w":1080,"h":1080},{"id":"17857085815204401","y":2017,"w":1080,"h":1080},{"id":"17928989725009809","y":2017,"w":1080,"h":1080},{"id":"17917147270058104","y":2017,"w":1080,"h":1080},{"id":"17890051318184649","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17899256074107769","y":2017,"p":"Rila Mountains","w":1080,"h":1080},{"id":"17911423123046067","y":2017,"p":"Rila Mountains","w":1080,"h":1080},{"id":"17912406037016233","y":2017,"p":"Rila Mountains","w":1080,"h":1080},{"id":"17886472210145769","y":2017,"p":"Rila Mountains","w":1080,"h":1080},{"id":"17888342554186001","y":2017,"p":"Sofia","w":1080,"h":1162},{"id":"17912286097019367","y":2017,"p":"Sofia","w":1080,"h":810},{"id":"17886589435189267","y":2017,"p":"Sofia","w":1080,"h":1080},{"id":"17892997921090724","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17908435870036408","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17899136593008089","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17887104643100700","y":2017,"w":1080,"h":1080},{"id":"17870815321175690","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17898375055026400","y":2017,"p":"Berlin","w":1080,"h":1350},{"id":"17869809754184740","y":2017,"p":"Rotterdam","w":1080,"h":1080},{"id":"17869042786156432","y":2017,"p":"Rotterdam","w":1080,"h":1080},{"id":"17877223300094123","y":2017,"w":1080,"h":1080},{"id":"17880772435128709","y":2017,"w":1080,"h":1080},{"id":"17867426080159754","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17866489702189239","y":2017,"w":1080,"h":810},{"id":"17884186156066184","y":2017,"p":"Berlin","w":1080,"h":1350},{"id":"17875882744076214","y":2017,"p":"Dublin","w":1080,"h":810},{"id":"17861867194130072","y":2017,"p":"Berlin","w":1080,"h":1350},{"id":"17884379689007123","y":2017,"p":"Berlin","w":1080,"h":1080},{"id":"17882304952051009","y":2017,"p":"Hamburg","w":1080,"h":1350},{"id":"17857429243177768","y":2017,"p":"Hamburg","w":1080,"h":1080},{"id":"17880511387021387","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17881208746053141","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17859913669137903","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17882623948044988","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17870749153096544","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17881819225026569","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17882409349037425","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17875712173066767","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17859750055140502","y":2017,"p":"Singapore","w":1080,"h":1080},{"id":"17877178864040755","y":2017,"p":"Los Angeles","w":1080,"h":1080},{"id":"17874767719031079","y":2017,"p":"Joshua Tree","w":1080,"h":1080},{"id":"17852656339157269","y":2017,"p":"Palm Springs","w":1080,"h":810},{"id":"17876138317008664","y":2017,"p":"San Francisco","w":1080,"h":1080},{"id":"17851945285153507","y":2017,"p":"Los Angeles","w":1080,"h":1080},{"id":"17847182524166260","y":2017,"p":"Melbourne","w":1080,"h":1080},{"id":"17855756497084691","y":2016,"p":"Lake Tahoe","w":1080,"h":808},{"id":"17842592617163642","y":2016,"w":1080,"h":1080},{"id":"17846822407097176","y":2016,"w":1080,"h":1080},{"id":"17856263734050774","y":2016,"w":1080,"h":1080},{"id":"17846717659118438","y":2016,"w":1080,"h":1080},{"id":"17855355637012659","y":2016,"w":1080,"h":1080},{"id":"17846095681106910","y":2016,"w":1080,"h":1080},{"id":"17854931563044165","y":2016,"w":1080,"h":1080},{"id":"17854795999053642","y":2016,"w":1080,"h":1080},{"id":"17856331255053957","y":2016,"w":1080,"h":1080},{"id":"17845785493084255","y":2016,"w":1080,"h":1080},{"id":"17854317232001481","y":2016,"w":1080,"h":1080},{"id":"17855393884036356","y":2016,"w":1080,"h":1080},{"id":"17855717524024152","y":2016,"w":1080,"h":1080},{"id":"17854744597061465","y":2016,"w":1080,"h":1080},{"id":"17845416157093488","y":2016,"w":1080,"h":1080}];
+      /* photos:end */
+
+      (function () {
+        const grid = document.getElementById("grid");
+        const tiles = Array.from(grid.querySelectorAll(".tile"));
+        if (!tiles.length) return;
+
+        const reduceMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+
+        /* ---- Tiles settle in on scroll ---- */
+
+        if ("IntersectionObserver" in window && !reduceMotion) {
+          grid.classList.add("reveal");
+          const observer = new IntersectionObserver(
+            (entries, obs) => {
+              let step = 0;
+              for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                // Stagger within the batch so a row arrives as a sweep, not a
+                // block, but cap it so a fast scroll never queues a long wait.
+                entry.target.style.setProperty(
+                  "--d",
+                  Math.min(step++, 6) * 45 + "ms"
+                );
+                entry.target.classList.add("in");
+                obs.unobserve(entry.target);
+              }
+            },
+            { rootMargin: "0px 0px -8% 0px" }
+          );
+          tiles.forEach((tile) => observer.observe(tile));
+        }
+
+        /* ---- Lightbox ---- */
+
+        const lightbox = document.getElementById("lightbox");
+        const lbImg = document.getElementById("lbImg");
+        const lbPlace = document.getElementById("lbPlace");
+        const lbIndex = document.getElementById("lbIndex");
+        const btnClose = lightbox.querySelector(".lb-close");
+        const btnPrev = lightbox.querySelector(".lb-prev");
+        const btnNext = lightbox.querySelector(".lb-next");
+        const focusables = [btnClose, btnPrev, btnNext];
+
+        // A transparent 1x1 keeps the element from ever being a src-less img.
+        const BLANK =
+          "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+        let current = -1;
+        let lastFocused = null;
+        // Opening from a tile adds one history entry, so the browser's back
+        // gesture closes the viewer. Stepping between photos only rewrites it.
+        let pushedState = false;
+        // history.back() reports the hash it restored, and that report must not
+        // be mistaken for someone linking to a photo.
+        let ignoreNextHashChange = false;
+
+        const full = (i) => "/gallery/photos/" + PHOTOS[i].id + ".avif";
+        const thumb = (i) => "/gallery/photos/" + PHOTOS[i].id + "-t.avif";
+        const caption = (i) =>
+          PHOTOS[i].p ? PHOTOS[i].p + " · " + PHOTOS[i].y : String(PHOTOS[i].y);
+
+        function lockScroll(on) {
+          const bar = window.innerWidth - document.documentElement.clientWidth;
+          document.body.style.overflow = on ? "hidden" : "";
+          document.body.style.paddingRight = on && bar > 0 ? bar + "px" : "";
+        }
+
+        function render(i) {
+          const photo = PHOTOS[i];
+          // The ratio is known before the file arrives, so the box never jumps.
+          lbImg.style.aspectRatio = photo.w + " / " + photo.h;
+          // The thumbnail is already cached from the grid, so it paints at once
+          // and the full file replaces it when it lands.
+          lbImg.src = thumb(i);
+          lbImg.alt = "Photograph — " + caption(i);
+          const hi = new Image();
+          hi.onload = () => {
+            if (current === i) lbImg.src = hi.src;
+          };
+          hi.src = full(i);
+
+          lbPlace.textContent = caption(i);
+          lbIndex.textContent = i + 1 + " / " + PHOTOS.length;
+          btnPrev.disabled = i === 0;
+          btnNext.disabled = i === PHOTOS.length - 1;
+
+          // Warm the neighbours so arrowing through feels instant.
+          for (const j of [i - 1, i + 1]) {
+            if (PHOTOS[j]) new Image().src = full(j);
+          }
+        }
+
+        /* Grows the image out of the tile it was opened from. Measured after
+           layout, so it tracks whatever size the image actually resolved to. */
+        function flipFrom(tile) {
+          if (reduceMotion || !lbImg.animate) return;
+          const from = tile.getBoundingClientRect();
+          const to = lbImg.getBoundingClientRect();
+          if (!to.width || !to.height) return;
+          const scale = from.width / to.width;
+          lbImg.animate(
+            [
+              {
+                transform:
+                  "translate(" +
+                  (from.left - to.left) +
+                  "px, " +
+                  (from.top - to.top) +
+                  "px) scale(" +
+                  scale +
+                  ")",
+                opacity: 0.35,
+              },
+              { transform: "none", opacity: 1 },
+            ],
+            { duration: 340, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+          );
+        }
+
+        function open(i, tile) {
+          if (!PHOTOS[i]) return;
+          lastFocused = tile || document.activeElement;
+          current = i;
+          lightbox.hidden = false;
+          render(i);
+          lockScroll(true);
+          // Two frames: one for the browser to lay the image out, one for the
+          // backdrop transition to have a starting value to move from.
+          requestAnimationFrame(() => {
+            lightbox.classList.add("is-open");
+            if (tile) flipFrom(tile);
+          });
+          lightbox.focus({ preventScroll: true });
+        }
+
+        function go(delta) {
+          const next = current + delta;
+          if (!PHOTOS[next]) return;
+          current = next;
+          render(next);
+          history.replaceState({ lb: next }, "", "#" + PHOTOS[next].id);
+        }
+
+        function close() {
+          if (current === -1) return;
+          const tile = tiles[current];
+          current = -1;
+          lightbox.classList.remove("is-open");
+          lockScroll(false);
+
+          const finish = () => {
+            lightbox.hidden = true;
+            lbImg.src = BLANK;
+            lbImg.style.aspectRatio = "";
+          };
+          if (reduceMotion || !lbImg.animate) {
+            finish();
+          } else {
+            // Shrink back into the tile, scrolled into view if it drifted.
+            tile.scrollIntoView({ block: "nearest", behavior: "instant" });
+            const from = lbImg.getBoundingClientRect();
+            const to = tile.getBoundingClientRect();
+            const anim = lbImg.animate(
+              [
+                { transform: "none", opacity: 1 },
+                {
+                  transform:
+                    "translate(" +
+                    (to.left - from.left) +
+                    "px, " +
+                    (to.top - from.top) +
+                    "px) scale(" +
+                    to.width / from.width +
+                    ")",
+                  opacity: 0.25,
+                },
+              ],
+              { duration: 260, easing: "cubic-bezier(0.4, 0, 1, 1)" }
+            );
+            anim.onfinish = finish;
+            anim.oncancel = finish;
+          }
+
+          if (lastFocused) lastFocused.focus({ preventScroll: true });
+
+          if (pushedState) {
+            pushedState = false;
+            ignoreNextHashChange = true;
+            history.back();
+          } else if (location.hash) {
+            // Arrived on a deep link, so there is no entry to go back to; drop
+            // the fragment instead, or a reload would reopen the photo.
+            history.replaceState(null, "", location.pathname + location.search);
+          }
+        }
+
+        tiles.forEach((tile, i) => {
+          tile.addEventListener("click", (event) => {
+            // Cmd/ctrl-click still opens the full image in a new tab.
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+            event.preventDefault();
+            history.pushState({ lb: i }, "", "#" + PHOTOS[i].id);
+            pushedState = true;
+            open(i, tile);
+          });
+        });
+
+        lightbox.addEventListener("click", (event) => {
+          if (event.target.dataset.close !== undefined) close();
+        });
+        btnClose.addEventListener("click", close);
+        btnPrev.addEventListener("click", () => go(-1));
+        btnNext.addEventListener("click", () => go(1));
+
+        document.addEventListener("keydown", (event) => {
+          if (current === -1) return;
+          if (event.key === "Escape") close();
+          else if (event.key === "ArrowLeft") go(-1);
+          else if (event.key === "ArrowRight") go(1);
+          else if (event.key === "Tab") {
+            // Keep focus inside the dialog while it is open.
+            const usable = focusables.filter((el) => !el.disabled);
+            const i = usable.indexOf(document.activeElement);
+            // From the dialog itself (i === -1), Tab enters at the first control
+            // and Shift+Tab at the last.
+            const next =
+              i === -1
+                ? event.shiftKey
+                  ? usable.length - 1
+                  : 0
+                : (i + (event.shiftKey ? -1 : 1) + usable.length) % usable.length;
+            event.preventDefault();
+            usable[next].focus();
+          }
+        });
+
+        let touchX = null;
+        lightbox.addEventListener(
+          "touchstart",
+          (event) => {
+            touchX = event.changedTouches[0].clientX;
+          },
+          { passive: true }
+        );
+        lightbox.addEventListener("touchend", (event) => {
+          if (touchX === null) return;
+          const dx = event.changedTouches[0].clientX - touchX;
+          touchX = null;
+          if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+        });
+
+        window.addEventListener("popstate", () => {
+          // Clearing this first stops close() from pushing back a second time.
+          pushedState = false;
+          if (current !== -1) close();
+        });
+
+        // A link from anywhere else can name a photo: /gallery/#<id>. Internal
+        // navigation uses push/replaceState, which fires no hashchange, so this
+        // only ever runs for a hash the page did not set itself.
+        function openFromHash() {
+          const i = PHOTOS.findIndex((photo) => photo.id === location.hash.slice(1));
+          if (i === -1 || i === current) return;
+          if (current !== -1) close();
+          tiles[i].scrollIntoView({ block: "center", behavior: "instant" });
+          open(i, tiles[i]);
+        }
+
+        window.addEventListener("hashchange", () => {
+          if (ignoreNextHashChange) {
+            ignoreNextHashChange = false;
+            return;
+          }
+          openFromHash();
+        });
+        openFromHash();
+      })();
+    </script>
+  </body>
+</html>

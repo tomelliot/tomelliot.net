@@ -119,10 +119,61 @@
         padding-bottom: 8px;
       }
 
-      .projects {
+      .projects,
+      .photos {
         display: flex;
         flex-direction: column;
         gap: 1.25rem;
+      }
+
+      .photo-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+      }
+
+      /* Tiles are links, so they need the anchor defaults above undone: the
+         hover rule is a scale on the photo rather than a rule under text. */
+      .photo-tile {
+        display: block;
+        width: auto;
+        aspect-ratio: 1;
+        overflow: hidden;
+        background-color: rgba(226, 232, 240, 0.05);
+        border-bottom: 0;
+      }
+
+      .photo-tile:hover {
+        border-bottom: 0;
+      }
+
+      .photo-tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .photo-tile:hover img,
+      .photo-tile:focus-visible img {
+        transform: scale(1.045);
+      }
+
+      .photo-tile:focus-visible {
+        outline: 2px solid rgb(226, 232, 240);
+        outline-offset: 2px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .photo-tile img {
+          transition: none;
+        }
+
+        .photo-tile:hover img,
+        .photo-tile:focus-visible img {
+          transform: none;
+        }
       }
 
       .project a {
@@ -237,6 +288,23 @@
               target="_blank"
               rel="noopener noreferrer"
               >Mastodon</a
+            >
+          </div>
+          <div class="photos">
+            <h2 class="section-heading">Photos</h2>
+            <div class="photo-strip"><!-- photos:start -->
+            <a class="photo-tile" href="/gallery/#18039893306346219" aria-label="Photo: Berlin · 2025"
+              ><img src="/gallery/photos/18039893306346219-t.avif" alt="" width="600" height="600"
+            /></a>
+            <a class="photo-tile" href="/gallery/#17954052788975071" aria-label="Photo: South Tyrol · 2025"
+              ><img src="/gallery/photos/17954052788975071-t.avif" alt="" width="600" height="600"
+            /></a>
+            <a class="photo-tile" href="/gallery/#18151779520378051" aria-label="Photo: Lake Garda · 2025"
+              ><img src="/gallery/photos/18151779520378051-t.avif" alt="" width="600" height="600"
+            /></a>
+            <!-- photos:end --></div>
+            <a href="/gallery/"
+              >All <!-- count:start -->175<!-- count:end --> photos</a
             >
           </div>
           <div class="projects">

@@ -22,6 +22,8 @@ Replacements are uploaded before their predecessors are deleted, so no URL is ev
 
 If the source returns an empty list while the manifest holds photos, the run aborts rather than emptying the site — an API hiccup should not wipe the gallery.
 
+The manifest is trusted as the record of what is published. If objects are deleted from the bucket by hand, the sync will not notice the gap or repair it; delete `gallery/manifest.json` and let the next run republish everything.
+
 ## Running it by hand
 
 ```bash

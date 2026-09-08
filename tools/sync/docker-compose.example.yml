@@ -30,8 +30,8 @@ services:
     volumes:
       - gallery-sync-data:/data
       # The deploy key that lets the container push the site repo.
-      - ./secrets/deploy_key:/home/sync/.ssh/id_ed25519:ro
-      - ./secrets/known_hosts:/home/sync/.ssh/known_hosts:ro
+      - ./secrets/deploy_key:/home/gallery/.ssh/id_ed25519:ro
+      - ./secrets/known_hosts:/home/gallery/.ssh/known_hosts:ro
     networks:
       - immich_default
     depends_on:

@@ -167,8 +167,10 @@ const server = http.createServer(async (req, res) => {
 async function checkImageMagick() {
   try {
     const { stdout } = await exec("magick", ["-list", "format"]);
-    if (!/^\s*AVIF\*?\s/m.test(stdout)) {
-      throw new Error("ImageMagick has no AVIF delegate (install imagemagick-heic)");
+    // The format line reads `AVIF  HEIC  rw-  ...`; a decoder-only libheif
+    // lists it as `r--`, which is why presence alone is not enough.
+    if (!/^\s*AVIF\*?\s+\S+\s+r?w/m.test(stdout)) {
+      throw new Error("ImageMagick cannot write AVIF (install imagemagick-heic and an encoder such as libheif-aom)");
     }
   } catch (error) {
     log(`FATAL: ${error.message}`);

@@ -188,18 +188,18 @@
         display: grid;
         place-items: center;
         padding: clamp(1rem, 4vw, 3rem);
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+      }
+
+      .lightbox.is-open {
+        opacity: 1;
       }
 
       .lb-backdrop {
         position: absolute;
         inset: 0;
         background-color: rgba(10, 11, 11, 0.985);
-        opacity: 0;
-        transition: opacity 0.32s var(--ease);
-      }
-
-      .lightbox.is-open .lb-backdrop {
-        opacity: 1;
       }
 
       /* Positioned so it paints over the backdrop, which is positioned too and
@@ -221,7 +221,6 @@
         /* Leaves room for the caption line and the page padding. */
         max-height: calc(100vh - clamp(6rem, 14vw, 9rem));
         object-fit: contain;
-        transform-origin: top left;
       }
 
       .lb-caption {
@@ -231,12 +230,6 @@
         gap: 1.5rem;
         width: 100%;
         font-size: 14px;
-        opacity: 0;
-        transition: opacity 0.3s ease 0.15s;
-      }
-
-      .lightbox.is-open .lb-caption {
-        opacity: 1;
       }
 
       .lb-place {
@@ -260,17 +253,13 @@
         background-color: transparent;
         color: var(--fg);
         cursor: pointer;
-        opacity: 0;
-        transition: opacity 0.3s ease 0.15s, background-color 0.2s ease;
-      }
-
-      .lightbox.is-open .lb-btn {
         opacity: 0.55;
+        transition: background-color 0.2s ease;
       }
 
-      .lightbox.is-open .lb-btn:hover,
-      .lightbox.is-open .lb-btn:active,
-      .lightbox.is-open .lb-btn:focus-visible {
+      .lb-btn:hover,
+      .lb-btn:active,
+      .lb-btn:focus-visible {
         opacity: 1;
         background-color: rgba(226, 232, 240, 0.1);
       }
@@ -380,8 +369,8 @@
 
         /* On the backdrop rather than over the photograph, and with no hover to
            bring them up, they read as controls instead of as a hint. */
-        .lightbox.is-open .lb-prev,
-        .lightbox.is-open .lb-next {
+        .lb-prev,
+        .lb-next {
           opacity: 0.9;
         }
       }
@@ -1126,33 +1115,6 @@
           }
         }
 
-        /* Grows the image out of the tile it was opened from. Measured after
-           layout, so it tracks whatever size the image actually resolved to. */
-        function flipFrom(tile) {
-          if (reduceMotion || !lbImg.animate) return;
-          const from = tile.getBoundingClientRect();
-          const to = lbImg.getBoundingClientRect();
-          if (!to.width || !to.height) return;
-          const scale = from.width / to.width;
-          lbImg.animate(
-            [
-              {
-                transform:
-                  "translate(" +
-                  (from.left - to.left) +
-                  "px, " +
-                  (from.top - to.top) +
-                  "px) scale(" +
-                  scale +
-                  ")",
-                opacity: 0.35,
-              },
-              { transform: "none", opacity: 1 },
-            ],
-            { duration: 340, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
-          );
-        }
-
         function open(i, tile) {
           if (!PHOTOS[i]) return;
           lastFocused = tile || document.activeElement;
@@ -1160,12 +1122,12 @@
           lightbox.hidden = false;
           render(i);
           lockScroll(true);
-          // Two frames: one for the browser to lay the image out, one for the
-          // backdrop transition to have a starting value to move from.
-          requestAnimationFrame(() => {
-            lightbox.classList.add("is-open");
-            if (tile) flipFrom(tile);
-          });
+          // Reading layout flushes the unhidden opacity:0, so the class below
+          // has a starting value to fade from rather than jumping to opaque.
+          // Done synchronously: a rAF here never fires in a background tab,
+          // which would leave the lightbox open and invisible.
+          void lightbox.offsetHeight;
+          lightbox.classList.add("is-open");
           lightbox.focus({ preventScroll: true });
         }
 
@@ -1181,41 +1143,29 @@
           if (current === -1) return;
           const tile = tiles[current];
           current = -1;
-          lightbox.classList.remove("is-open");
           lockScroll(false);
+          lightbox.classList.remove("is-open");
 
-          const finish = () => {
+          // Leaves the grid on the photograph that was open, in case arrowing
+          // through carried it off screen.
+          tile.scrollIntoView({ block: "nearest", behavior: "instant" });
+
+          // Torn down once the fade has run, and skipped if a reopen got in
+          // first. The event is filtered because a button's hover transition
+          // bubbles up here too; the timeout covers a transitionend that never
+          // arrives.
+          const finish = (e) => {
+            if (e && (e.target !== lightbox || e.propertyName !== "opacity")) {
+              return;
+            }
+            lightbox.removeEventListener("transitionend", finish);
+            if (current !== -1) return;
             lightbox.hidden = true;
             lbImg.src = BLANK;
             lbImg.style.aspectRatio = "";
           };
-          if (reduceMotion || !lbImg.animate) {
-            finish();
-          } else {
-            // Shrink back into the tile, scrolled into view if it drifted.
-            tile.scrollIntoView({ block: "nearest", behavior: "instant" });
-            const from = lbImg.getBoundingClientRect();
-            const to = tile.getBoundingClientRect();
-            const anim = lbImg.animate(
-              [
-                { transform: "none", opacity: 1 },
-                {
-                  transform:
-                    "translate(" +
-                    (to.left - from.left) +
-                    "px, " +
-                    (to.top - from.top) +
-                    "px) scale(" +
-                    to.width / from.width +
-                    ")",
-                  opacity: 0.25,
-                },
-              ],
-              { duration: 260, easing: "cubic-bezier(0.4, 0, 1, 1)" }
-            );
-            anim.onfinish = finish;
-            anim.oncancel = finish;
-          }
+          lightbox.addEventListener("transitionend", finish);
+          setTimeout(finish, 300);
 
           if (lastFocused) lastFocused.focus({ preventScroll: true });
 

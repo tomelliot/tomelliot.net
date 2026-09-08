@@ -10,8 +10,10 @@ Photographs tagged `tomelliot.net` in Immich appear in the gallery at https://ww
 
 ## Where things are
 
+**Status, 2026-09-08:** live. The sync runs on pixie in `~/gallery-sync/`, `spike/photo-gallery` is merged to `main`, and the gallery serves from R2. Only the webhook accelerator is outstanding, waiting on Immich 3.2.0 (see § 5).
+
 - **Repo:** `git@github.com:tomelliot/tomelliot.net.git`
-- **Branch:** `spike/photo-gallery` (pushed; six commits ahead of `main`)
+- **Branch:** `main` (the sync pushes there directly; `spike/photo-gallery` was the development branch)
 - **Site:** a hand-written static site on GitHub Pages, served from `main`. No framework, no build step for the site itself, no npm dependencies anywhere in the project.
 
 | Path | What it is |
@@ -32,13 +34,13 @@ Photographs tagged `tomelliot.net` in Immich appear in the gallery at https://ww
 
 ## The one constraint that shapes everything
 
-Immich v3.0.0 added Workflows. The trigger enum is exactly:
+Immich v3.0.0 added Workflows. On the server this runs against (**3.1.0**, checked 2026-09-08) the trigger enum is exactly:
 
 ```
-AssetCreate | AssetMetadataExtraction | AssetTagged
+AssetCreate | AssetMetadataExtraction
 ```
 
-`AssetTagged` fires when a tag is **added** to an asset. **There is no trigger for a tag being removed**, and none for a description or date being edited. A webhook-driven design could therefore add photos to the site and never take one off.
+`AssetTagged` — which fires when a tag is **added** to an asset — and the matching tag filter arrived in [immich-app/immich#29043](https://github.com/immich-app/immich/pull/29043), merged 2026-08-12, two weeks after 3.1.0 shipped. It is in the 3.2.0 release candidates and will be available once pixie's Immich moves to 3.2.0. Even then, **there is no trigger for a tag being removed**, and none for a description or date being edited. A webhook-driven design could therefore add photos to the site and never take one off.
 
 So the timer is the backbone and the webhook is only an accelerator. Every run asks Immich for the tag's entire contents and makes the site match — additions, removals and metadata edits all converge, and the run is idempotent. The webhook decides *when* the next run happens, never *what* it does; its payload is deliberately ignored, which also means the integration cannot break when Immich changes that payload's shape.
 
@@ -61,9 +63,7 @@ The Cloudflare side is built and verified. You do not need to create anything th
 | Public domain | `https://photos.tomelliot.net` — ownership active, SSL active |
 | Zone ID | `feb518dc3908f1641b99310f08fc3f18` (tomelliot.net was already on Cloudflare, which is what made a custom domain possible) |
 | Token | Object Read & Write, scoped to that bucket only |
-| Credentials | `/tmp/.env` on your machine |
-
-**Move those credentials off `/tmp` before you rely on them.** They will not survive a reboot.
+| Credentials | `~/gallery-sync/.env` on pixie, mode 600, gitignored (moved off `/tmp` on 2026-09-08) |
 
 `tools/lib/targets.mjs` implements SigV4 by hand, with no npm dependencies anywhere in this project, deliberately, since the sync container holds both Immich and GitHub credentials. That signing has now been exercised against the real bucket: signed PUT, GET, LIST and DELETE all work, objects persist, and the public domain serves them at 200 with `cache-control: public, max-age=31536000, immutable`. That header is safe because filenames carry a hash of the source bytes, so a given URL's content can never change.
 
@@ -78,18 +78,20 @@ Two things that will mislead you while checking R2 by hand, both encountered dur
 - `wrangler r2 object get <bucket>/<key>` reported *"The specified key does not exist"* for objects that were demonstrably there — a signed GET and a signed LIST both returned them. Trust the S3 API over wrangler here.
 - `wrangler r2 bucket info` reports `object_count: 0` straight after an upload. That metric lags; it is not evidence of anything.
 
-## What has never run against real infrastructure
+## Verified against real infrastructure on pixie, 2026-09-08
 
-Two items remain. Everything else has been exercised.
+Everything has now run for real. What the live server taught us, for the record:
 
-1. **Real Immich responses.** The Immich adapter was written against the OpenAPI spec at `open-api/immich-openapi-specs.json` and tested against a stub shaped from it. Field names come from the spec, not from a live server. This is now the biggest unknown.
-2. **The container image.** No Docker daemon was available. In particular, that Alpine's `imagemagick-heic` really does provide ImageMagick's AVIF delegate is an assumption. `server.mjs` checks it at boot and exits with a clear message if it is missing, so this fails loudly rather than half-way through the first encode.
+1. **Real Immich responses match the adapter.** `POST /search/metadata` on 3.1.0 returns exactly the fields the adapter reads (`id`, `checksum`, `localDateTime`, `exifInfo.{city,state,country,dateTimeOriginal,description}`, plus `thumbhash` and the camera fields). Of the 175 assets tagged at the time, 173 were images, 169 had a reverse-geocoded city, all had `dateTimeOriginal`, and none had a description.
+2. **`thumbnail?size=fullsize` is a 302 to `/original` for JPEG originals.** Full-size derivatives are not generated on this server (and enabling them would reprocess a 61k-asset library), so Immich redirects to the original instead. Node's `fetch` follows the redirect, but `/original` needs the **`asset.download`** permission on the API key, or every run fails with a 403 on the first download. The gallery key now carries `asset.read`, `asset.view`, `asset.download`, `tag.read`.
+3. **The container image needed three fixes** (commits `43328d9`, `10a0619`): Alpine ships a built-in `sync` user, so the service user is now `gallery` (uid 1001); Alpine's libheif carries AVIF *decoders* only, so `libheif-aom` supplies the encoder; and each ImageMagick delegate is its own package, so `imagemagick-jpeg` is needed to read the originals at all. The boot check in `server.mjs` now requires AVIF's write flag rather than its presence, because the decoder-only build passed the old check and failed at the first encode.
+4. **Encode cost on pixie** (i5-4250U, 4 cores): about 2.5 s per full-size AVIF and 0.8 s per thumbnail, four in flight, peaking at ~390 MiB. The first full run (173 photos, 346 uploads) took ten and a half minutes; an unchanged run takes a few seconds.
 
 ## Setup, in order
 
 ### 1. Confirm the Immich side by hand
 
-Before touching the container. Create an API key in Immich under Account Settings → API Keys (needs read access to assets and tags), then:
+Before touching the container. Create an API key in Immich under Account Settings → API Keys with `asset.read`, `asset.view`, `asset.download` and `tag.read` (`asset.download` because `size=fullsize` redirects to `/original`, see above), then:
 
 ```bash
 export IMMICH_URL=http://immich-server:2283      # or http://localhost:2283 from the host
@@ -131,11 +133,15 @@ ssh-keygen -t ed25519 -f secrets/deploy_key -N "" -C "gallery-sync"
 ssh-keyscan github.com > secrets/known_hosts
 ```
 
-Add `secrets/deploy_key.pub` to the repo's Deploy keys **with write access**.
+Add `secrets/deploy_key.pub` to the repo's Deploy keys **with write access** (`gh repo deploy-key add secrets/deploy_key.pub -R tomelliot/tomelliot.net --allow-write --title "gallery-sync (pixie)"`).
+
+The container runs as uid 1001, so the private key must be owned by that uid or ssh refuses it: `sudo chown 1001:1001 secrets/deploy_key`. `known_hosts` can stay world-readable.
 
 ### 4. The service
 
-Copy `tools/sync/docker-compose.example.yml` into the Immich stack and `tools/sync/env.example` to `.env` beside it, then merge in the R2 values from `/tmp/.env`. Only the Immich API key and the webhook secret are still missing at that point. The service joins Immich's Docker network and reaches it at `http://immich-server:2283` — nothing is exposed to the internet, and the only outbound traffic is to R2 and GitHub. Check the network name in the compose file matches your stack (it assumes `immich_default`).
+On pixie this lives as its own stack at `~/gallery-sync/` (compose file, `.env`, `secrets/`), joined to the `immich_default` network — the same pattern as the pet-tagger sidecar, rather than a service inside `~/immich-app`, whose `.env` holds the database password. The image is built from `~/tomelliot.net/tools/sync` (a plain clone of this repo, used as the build context only). The interval is **5 minutes** there, because without the webhook the timer is the only path.
+
+Elsewhere: copy `tools/sync/docker-compose.example.yml` into the Immich stack and `tools/sync/env.example` to `.env` beside it, then fill it in. The service reaches Immich at `http://immich-server:2283` — nothing is exposed to the internet, and the only outbound traffic is to R2 and GitHub. Check the network name in the compose file matches your stack (it assumes `immich_default`).
 
 Start with `SYNC_DRY_RUN=true` for the first run: the pipeline executes fully, including uploads, but nothing is committed or pushed.
 
@@ -146,9 +152,9 @@ docker compose logs -f gallery-sync
 
 The first real run publishes everything in the tag and takes a while. Later runs only touch what changed.
 
-### 5. The webhook, last
+### 5. The webhook, last — blocked until Immich 3.2.0
 
-Everything works without this; you just wait up to fifteen minutes. Plugin method keys differ between Immich versions, so the script reads them off your server rather than guessing:
+**Not created on pixie.** Immich 3.1.0 offers neither the `AssetTagged` trigger nor a tag filter method; run in print mode the script correctly refuses and lists the twelve methods the server does have. Everything works without it; you just wait up to five minutes. Once Immich is on 3.2.0, come back here. The management key for this step needs `workflow.*`, `plugin.read` and `tag.read`; the script can run on the host with `IMMICH_URL=http://localhost:2283`. Plugin method keys differ between Immich versions, so the script reads them off your server rather than guessing:
 
 ```bash
 docker compose exec gallery-sync node /app/immich-workflow.mjs --list-methods
@@ -194,8 +200,9 @@ Auth is the `x-api-key` header. All paths are under `/api`.
 |---|---|
 | `GET /tags` | Resolve the tag name to an id. Tags are hierarchical: `value` is the full path, `name` the leaf. |
 | `POST /search/metadata` | `{tagIds, withExif, visibility, type, page, size}`. Paginate on `assets.nextPage`. |
-| `GET /assets/{id}/thumbnail?size=fullsize` | What the sync downloads. `size` accepts `original\|fullsize\|preview\|thumbnail`. |
-| `GET /assets/{id}/original` | The raw file, if you set `IMMICH_QUALITY=original`. |
+| `GET /assets/{id}/thumbnail?size=fullsize` | What the sync downloads. `size` accepts `original\|fullsize\|preview\|thumbnail`. When no full-size derivative exists (the default), this is a **302 to `original`** for web-friendly originals, so the key needs `asset.download` too. |
+| `GET /assets/{id}/original` | The raw file, if you set `IMMICH_QUALITY=original`, and where `fullsize` lands in practice. |
+| `GET /api-keys/me` | What a key is allowed to do — the fastest way to explain a 403. |
 | `GET /plugins/methods` | Workflow plugin methods, with keys and schemas. |
 | `GET /workflows/triggers`, `POST /workflows` | Workflow management. |
 

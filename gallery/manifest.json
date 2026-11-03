@@ -3,6 +3,24 @@
  "source": "immich:tomelliot.net",
  "photos": [
   {
+   "id": "c91ea81c-99cb-432d-a4d6-e46dfc794510",
+   "f": "c91ea81c-99cb-432d-a4d6-e46dfc794510-64a336e3",
+   "v": "Z5XAeoN/D8IwVeVSsP8nQiucnUc=",
+   "y": 2026,
+   "p": "Berlin",
+   "w": 2400,
+   "h": 1800
+  },
+  {
+   "id": "31d2371b-b713-43e5-9a3a-983f715afbbe",
+   "f": "31d2371b-b713-43e5-9a3a-983f715afbbe-ba09b8d9",
+   "v": "jMskEgP8XByNaOxGhMOY89ZqWus=",
+   "y": 2026,
+   "p": "Kleinmachnow",
+   "w": 2400,
+   "h": 1800
+  },
+  {
    "id": "33c4587c-ce6e-4d6d-9cba-f9913007d8d0",
    "f": "33c4587c-ce6e-4d6d-9cba-f9913007d8d0-b03f537b",
    "v": "EL9t5Df/Z3+f94mykRy7Ojm+MD0=",
